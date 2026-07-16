@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VERI // Agent Runtime Intelligence Cockpit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: hsl(228, 28%, 4%);
+            --bg-surface: hsl(228, 24%, 7%);
+            --bg-surface-elevated: hsl(228, 20%, 10%);
+            --bg-hover: hsl(228, 18%, 13%);
+            --bg-active: hsl(228, 16%, 16%);
+            --border: hsl(228, 12%, 18%);
+            --border-strong: hsl(228, 10%, 25%);
+            --border-focus: hsl(213, 100%, 55%);
+            
+            --text-primary: hsl(0, 0%, 96%);
+            --text-secondary: hsl(228, 10%, 55%);
+            --text-muted: hsl(228, 10%, 35%);
+
+            /* Bioluminescent Accents */
+            --accent: hsl(213, 100%, 55%);
+            --accent-glow: rgba(62, 139, 255, 0.15);
+            
+            --intent-color: hsl(213, 100%, 55%);
+            --reasoning-color: hsl(268, 78%, 60%);
+            --knowledge-color: hsl(185, 90%, 48%);
+            --action-color: hsl(155, 75%, 45%);
+            --decision-color: hsl(38, 95%, 55%);
+            --risk-color: hsl(0, 78%, 55%);
+            
+            --success: hsl(155, 75%, 45%);
+            --success-glow: rgba(16, 185, 129, 0.1);
+            --warning: hsl(38, 95%, 55%);
+            --warning-glow: rgba(245, 158, 11, 0.1);
+            --danger: hsl(0, 78%, 55%);
+            --danger-glow: rgba(239, 68, 68, 0.1);
+            
+            --mono: 'JetBrains Mono', monospace;
+            --sans: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--sans);
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* ── Sidebar Navigation ── */
+        aside {
+            width: 280px;
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 2rem 1.5rem;
+            height: 100vh;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-primary);
+            margin-bottom: 2.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo span {
+            color: var(--accent);
+            text-shadow: 0 0 10px var(--accent);
+        }
+
+        .section-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin: 1.5rem 0.75rem 0.5rem 0.75rem;
+            font-weight: 700;
+        }
+
+        nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .nav-item {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .nav-item:hover {
+            color: var(--text-primary);
+            background-color: var(--bg-hover);
+        }
+
+        .nav-item.active {
+            color: var(--text-primary);
+            background-color: var(--bg-active);
+            border-left: 3px solid var(--accent);
+            font-weight: 600;
+        }
+
+        /* ── Main Application Window ── */
+        .app-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            height: 80px;
+            border-bottom: 1px solid var(--border);
+            padding: 0 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-top: 0.15rem;
+        }
+
+        .content-area {
+            flex-grow: 1;
+            padding: 2.5rem 3rem;
+            overflow-y: auto;
+            display: none;
+            height: calc(100vh - 80px);
+        }
+
+        .content-area.active-tab {
+            display: block;
+        }
+
+        /* ── Stats Grid ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .stat-card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-strong);
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--accent);
+            opacity: 0.6;
+        }
+
+        .stat-card.success::after { background: var(--success); }
+        .stat-card.warning::after { background: var(--warning); }
+        .stat-card.danger::after { background: var(--danger); }
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 1.85rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .stat-meta {
+            font-size: 0.75rem;
+            color: var(--success);
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* ── Split Panel Layout ── */
+        .panel-container {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .panel {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.75rem;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+        }
+
+        .panel-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* ── Suggestions & Cards ── */
+        .suggestion-card {
+            background-color: var(--bg-surface-elevated);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .suggestion-card:hover {
+            border-color: var(--border-strong);
+        }
+
+        .suggestion-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .risk-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .risk-badge.L1 { background-color: var(--success-glow); color: var(--success); }
+        .risk-badge.L2 { background-color: var(--warning-glow); color: var(--warning); }
+        .risk-badge.L3 { background-color: var(--danger-glow); color: var(--danger); }
+
+        code-block {
+            display: block;
+            background-color: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.85rem;
+            font-family: var(--mono);
+            font-size: 0.825rem;
+            color: #E2E8F0;
+            overflow-x: auto;
+            margin: 0.75rem 0;
+            white-space: pre;
+            line-height: 1.4;
+        }
+
+        .btn {
+            background-color: var(--accent);
+            color: var(--text-primary);
+            border: none;
+            padding: 0.55rem 1.15rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline:hover {
+            background-color: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .action-bar {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+        }
+
+        /* ── Tables ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+        }
+
+        td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge-status {
+            display: inline-flex;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .badge-status.active { background-color: var(--success-glow); color: var(--success); }
+        .badge-status.review { background-color: var(--warning-glow); color: var(--warning); }
+        .badge-status.failed { background-color: var(--danger-glow); color: var(--danger); }
+
+        /* ── Graph View Layout ── */
+        .graph-view-container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 1.5rem;
+            height: calc(100vh - 200px);
+            overflow: hidden;
+        }
+
+        .graph-canvas-container {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .canvas-toolbar {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 10;
+            background: rgba(19, 24, 34, 0.85);
+            padding: 0.4rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
+        }
+
+        .toolbar-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.35rem;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .graph-canvas {
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        .graph-canvas:active {
+            cursor: grabbing;
+        }
+
+        /* ── Node Inspector ── */
+        .node-inspector {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 1.5rem;
+            gap: 1.25rem;
+        }
+
+        .inspector-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .node-kind-badge {
+            display: inline-block;
+            align-self: flex-start;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #fff;
+        }
+
+        .meta-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .meta-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: 0.4rem;
+        }
+
+        .meta-item-label {
+            color: var(--text-secondary);
+        }
+
+        .meta-item-value {
+            font-weight: 600;
+            font-family: var(--mono);
+        }
+
+        /* ── Causal Debugger ── */
+        .causal-debugger-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .causal-chain-view {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.75rem;
+        }
+
+        .causal-chain-node-row {
+            display: flex;
+            align-items: center;
+            position: relative;
+            padding: 1rem 0;
+        }
+
+        .causal-chain-arrow {
+            display: flex;
+            justify-content: center;
+            color: var(--danger);
+            font-size: 1.5rem;
+            margin-left: 2.5rem;
+            padding: 0.25rem 0;
+            border-left: 2px dashed var(--danger);
+            height: 30px;
+        }
+
+        .causal-chain-card {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            width: 500px;
+            position: relative;
+        }
+
+        .causal-chain-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            background: var(--text-secondary);
+        }
+
+        .causal-chain-card.root::before { background: var(--warning); }
+        .causal-chain-card.proximate::before { background: var(--danger); }
+
+        .causal-chain-card-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .causal-chain-card-body {
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .causal-chain-card-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-family: var(--mono);
+        }
+
+        /* ── Traces Section ── */
+        .session-selector {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: var(--sans);
+            font-size: 0.9rem;
+            margin-right: 1rem;
+            outline: none;
+        }
+
+        /* Simulated Stream Panel */
+        .stream-panel {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 0.4rem;
+            margin-top: 1.5rem;
+        }
+
+        .stream-item {
+            color: var(--text-secondary);
+            border-left: 2px solid var(--border);
+            padding-left: 0.5rem;
+        }
+
+        .stream-item.edge { color: var(--accent); border-color: var(--accent); }
+        .stream-item.node { color: var(--success); border-color: var(--success); }
+        .stream-item.session { color: var(--warning); border-color: var(--warning); }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <aside>
+        <div class="logo">VERI<span>//</span></div>
+        
+        <div class="section-label">Observability</div>
+        <nav>
+            <div class="nav-item active" onclick="switchTab('dashboard')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                Dashboard
+            </div>
+            <div class="nav-item" onclick="switchTab('traces')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                Session Traces
+            </div>
+        </nav>
+
+        <div class="section-label">Intelligence</div>
+        <nav>
+            <div class="nav-item" onclick="switchTab('graph')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Intelligence Graph
+            </div>
+            <div class="nav-item" onclick="switchTab('causal')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Causal Debugger
+            </div>
+            <div class="nav-item" onclick="switchTab('suggestions')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Suggestions Inbox
+            </div>
+        </nav>
+
+        <div class="section-label">Validation</div>
+        <nav>
+            <div class="nav-item" onclick="switchTab('golden')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Golden Tests
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Container -->
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header>
+            <div>
+                <h1 id="tab-title">Quality Cockpit</h1>
+                <div class="tagline" id="tab-tagline">CI/CD & Quality Infrastructure Layer for Agent v3</div>
+            </div>
+            <div>
+                <select id="session-select" class="session-selector" onchange="onSessionChange()">
+                    <option value="sess_ir_001">Session 1 (Flight Finder - Success)</option>
+                    <option value="sess_ir_002">Session 2 (Refund Process - Failure)</option>
+                    <option value="sess_ir_003">Session 3 (Inventory Sync - Loop Anomaly)</option>
+                </select>
+                <button class="btn" onclick="toggleTelemetrySimulator()">
+                    <span id="simulator-btn-text">Start Telemetry Simulator</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ────────────────────────────────────────── -->
+        <!-- TAB 1: DASHBOARD -->
+        <!-- ────────────────────────────────────────── -->
+        <div id="tab-dashboard" class="content-area active-tab">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card success">
+                    <div class="stat-label">Golden Test Pass Rate</div>
+                    <div class="stat-value">94.2%</div>
+                    <div class="stat-meta">↑ 1.2% over last 24h</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Golden Tests</div>
+                    <div class="stat-value" id="dashboard-active-tests">42</div>
+                    <div class="stat-meta" style="color: var(--text-secondary)">5 pending review</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-label">Average Latency</div>
+                    <div class="stat-value">1,420ms</div>
+                    <div class="stat-meta" style="color: var(--warning)">↓ 12ms increase in prompt mutation</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-label">Overage Cost Prevented</div>
+                    <div class="stat-value">$1,240.50</div>
+                    <div class="stat-meta">🔒 L0 limits triggered 15 times</div>
+                </div>
+            </div>
+
+            <!-- Split Panel -->
+            <div class="panel-container">
+                <!-- Suggestions inbox -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Suggestions Inbox</div>
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;" id="suggestions-count">1 Active Suggestion</span>
+                    </div>
+
+                    <div id="suggestions-container">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Golden Tests Summary -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Golden Suite</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Test Case</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="golden-suite-summary">
+                            <!-- Filled by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Live telemetry simulator terminal -->
+            <div class="panel" style="margin-top: 2rem;">
+                <div class="panel-title">Live Ingestion Telemetry Stream</div>
+                <div class="stream-panel" id="telemetry-stream">
+                    <div class="stream-item">[SYSTEM] Ingestion gateway idle. Ready to receive events.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ────────────────────────────────────────── -->
+        <!-- TAB 2: TRACES -->
+        <!-- ────────────────────────────────────────── -->
+        <div id="tab-traces" class="content-area">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Telemetry Traces (Runtime IR format)</div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Node ID</th>
+                            <th>Kind</th>
+                            <th>Label</th>
+                            <th>Confidence</th>
+                            <th>Cost</th>
+                            <th>Latency</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="traces-table-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ────────────────────────────────────────── -->
+        <!-- TAB 3: INTELLIGENCE GRAPH -->
+        <!-- ────────────────────────────────────────── -->
+        <div id="tab-graph" class="content-area">
+            <div class="graph-view-container">
+                
+                <!-- Graph Canvas -->
+                <div class="graph-canvas-container">
+                    <div class="canvas-toolbar">
+                        <button class="toolbar-btn" title="Zoom In" onclick="zoomGraph(1.1)">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </button>
+                        <button class="toolbar-btn" title="Zoom Out" onclick="zoomGraph(0.9)">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </button>
+                        <button class="toolbar-btn" title="Reset View" onclick="resetGraphView()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><polyline points="16 3 21 8 16 13"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><polyline points="8 21 3 16 8 11"/></svg>
+                        </button>
+                    </div>
+                    
+                    <svg id="svg-canvas" class="graph-canvas">
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="#232C3F" />
+                            </marker>
+                            <marker id="arrow-causes" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(155, 75%, 45%)" />
+                            </marker>
+                        </defs>
+                        <g id="canvas-content">
+                            <!-- Edges & Nodes drawn here -->
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Node Inspector -->
+                <div class="node-inspector" id="node-inspector">
+                    <div style="color: var(--text-secondary); text-align: center; margin-top: 5rem;">
+                        Select a node in the graph to inspect its epistemic, cognitive, and operational state.
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ────────────────────────────────────────── -->
+        <!-- TAB 4: CAUSAL DEBUGGER -->
+        <!-- ────────────────────────────────────────── -->
+        <div id="tab-causal" class="content-area">
+            <div class="causal-debugger-container">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Causal Root-Cause Analysis</div>
+                    </div>
+                    <div id="causal-debugger-content">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ────────────────────────────────────────── -->
+        <!-- TAB 5: SUGGESTIONS -->
+        <!-- ────────────────────────────────────────── -->
+        <div id="tab-suggestions" class="content-area">
+            <div class="panel" style="max-width: 800px;">
+                <div class="panel-header">
+                    <div class="panel-title">Optimization & Safety Suggestions Inbox</div>
+                </div>
+                <div id="suggestions-inbox-container">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ────────────────────────────────────────── -->
+        <!-- TAB 6: GOLDEN TESTS -->
+        <!-- ────────────────────────────────────────── -->
+        <div id="tab-golden" class="content-area">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Golden Test Suites</div>
+                    <button class="btn" onclick="addNewGoldenTest()">+ Add Golden Test</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Test Case ID</th>
+                            <th>Name</th>
+                            <th>Input Prompt</th>
+                            <th>Golden Expected Response</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="golden-tests-table-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── JavaScript Cockpit Engine ── -->
+    <script>
+        // ── Data Seeding ──
+        const sessionsData = {
+            "sess_ir_001": {
+                name: "Find cheapest flight SFO -> NYC",
+                status: "Success",
+                nodes: [
+                    { id: "node_1", kind: "intent", label: "Find cheapest flight SFO -> NYC", confidence: 1.0, cost: 0.0, latency: 15, content: { constraints: ["arrive before 9am"], budget: 150.0 } },
+                    { id: "node_2", kind: "knowledge", label: "retrieve flight history", confidence: 0.82, cost: 0.0, latency: 45, content: { query: "flight deals preferences", assumptions: ["user prefers United"] } },
+                    { id: "node_3", kind: "reasoning", label: "evaluate flight options", confidence: 0.91, cost: 0.002, latency: 1200, content: { prompt: "Compare flight timings and select SFO->NYC under $150" } },
+                    { id: "node_4", kind: "action", label: "search_flights", confidence: 1.0, cost: 0.0005, latency: 250, content: { origin: "SFO", dest: "NYC", tool_name: "flight_api" } },
+                    { id: "node_5", kind: "decision", label: "select UA-1234", confidence: 0.95, cost: 0.001, latency: 800, content: { selected: "UA-1234", price: 145, alternatives: ["AA-9012"] } }
+                ],
+                edges: [
+                    { source: "node_1", target: "node_2", kind: "decomposes_into" },
+                    { source: "node_2", target: "node_3", kind: "supports" },
+                    { source: "node_3", target: "node_4", kind: "causes" },
+                    { source: "node_3", target: "node_5", kind: "causes" }
+                ],
+                causal: null
+            },
+            "sess_ir_002": {
+                name: "Process refund for order 8832",
+                status: "Failed",
+                nodes: [
+                    { id: "node_10", kind: "intent", label: "Process refund for order 8832", confidence: 1.0, cost: 0.0, latency: 12, content: { amount: 45.99, order_id: 8832 } },
+                    { id: "node_11", kind: "knowledge", label: "retrieve return policy", confidence: 0.94, cost: 0.0, latency: 50, content: { assumptions: ["policy is up to date"] } },
+                    { id: "node_12", kind: "reasoning", label: "verify return eligibility", confidence: 0.45, cost: 0.004, latency: 1500, content: { warning: "negation detected in customer comment" } },
+                    { id: "node_13", kind: "action", label: "refund_check", confidence: 1.0, cost: 0.0005, latency: 120, content: { tool: "refund_api", order_id: 8832 } },
+                    { id: "node_14", kind: "error", label: "Policy violation: refund limit", confidence: 0.0, cost: 0.0, latency: 10, content: { error: "Refund amount exceeds L1 security limits without manual oversight" } }
+                ],
+                edges: [
+                    { source: "node_10", target: "node_11", kind: "decomposes_into" },
+                    { source: "node_11", target: "node_12", kind: "supports" },
+                    { source: "node_12", target: "node_13", kind: "causes" },
+                    { source: "node_13", target: "node_14", kind: "causes" }
+                ],
+                causal: {
+                    proximate: "Refund amount exceeded L1 limits without manual authorization.",
+                    root: "Embedding similarity scored return comments as eligible by ignoring a negation: 'I do NOT want to keep this item'.",
+                    chain: [
+                        { label: "Polarity Flip Mismatch", type: "NEGATION", desc: "Negative qualifier ignored during prompt parsing." },
+                        { label: "Stale Return Policy Check", type: "KNOWLEDGE", desc: "Stored cache lacked the modified L1 limit rules." },
+                        { label: "Security Gate Trigger", type: "POLICY", desc: "Local L0 guardrail prevented execution." }
+                    ]
+                }
+            },
+            "sess_ir_003": {
+                name: "Sync inventory",
+                status: "Loop Anomaly",
+                nodes: [
+                    { id: "node_20", kind: "intent", label: "Sync inventory data", confidence: 1.0, cost: 0.0, latency: 20, content: {} },
+                    { id: "node_21", kind: "action", label: "order_lookup", confidence: 0.90, cost: 0.001, latency: 150, content: { id: 4521 } },
+                    { id: "node_22", kind: "action", label: "order_lookup", confidence: 0.90, cost: 0.001, latency: 150, content: { id: 4521 } },
+                    { id: "node_23", kind: "action", label: "order_lookup", confidence: 0.90, cost: 0.001, latency: 150, content: { id: 4521 } },
+                    { id: "node_24", kind: "action", label: "order_lookup", confidence: 0.90, cost: 0.001, latency: 150, content: { id: 4521 } }
+                ],
+                edges: [
+                    { source: "node_20", target: "node_21", kind: "causes" },
+                    { source: "node_21", target: "node_22", kind: "causes" },
+                    { source: "node_22", target: "node_23", kind: "causes" },
+                    { source: "node_23", target: "node_24", kind: "causes" }
+                ],
+                causal: {
+                    proximate: "Infinite reasoning loop detected: identical tool inputs repeated 5 times.",
+                    root: "Tool order_lookup returned a timeout which was caught as a retry without backoff.",
+                    chain: [
+                        { label: "Tool Lookup Timeout", type: "TOOL", desc: "Order lookup failed to respond within 150ms." },
+                        { label: "Retry Without Backoff", type: "LOOP", desc: "No guardrail configured to break on repetitive inputs." }
+                    ]
+                }
+            }
+        };
+
+        let suggestions = [
+            {
+                id: "sug_001",
+                rule: "loop.identical_tool_calls",
+                risk: "L1",
+                desc: "VERI detected 5 sequential identical calls to the order_lookup tool. Proposing tool limit patch to prevent budget overflow.",
+                diff: `# veri.yaml — add under agent.guardrails:\nguardrails:\n  tool_limits:\n    - tool: order_lookup\n      max_calls: 4\n      on_exceed: "return_explanation"`
+            }
+        ];
+
+        let goldenTests = [
+            { id: "test_order_status_lookup", name: "Order Status Lookup", input: "What is my order status?", expected: "Your order is currently shipped. Tracking number: 1Z999AA1", status: "active" },
+            { id: "test_refund_request", name: "Refund Request", input: "I want a refund for my order.", expected: "Your refund has been approved.", status: "active" },
+            { id: "test_address_mutation", name: "Address Change Check", input: "Change my shipping address", expected: "Your shipping address was updated.", status: "review" }
+        ];
+
+        // ── Tab Management ──
+        function switchTab(tabId) {
+            document.querySelectorAll('.content-area').forEach(el => el.classList.remove('active-tab'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(`tab-${tabId}`).classList.add('active-tab');
+            
+            // Set header labels
+            const titleEl = document.getElementById('tab-title');
+            const taglineEl = document.getElementById('tab-tagline');
+            
+            if (tabId === 'dashboard') {
+                titleEl.textContent = "Quality Cockpit";
+                taglineEl.textContent = "CI/CD & Quality Infrastructure Layer for Agent v3";
+            } else if (tabId === 'traces') {
+                titleEl.textContent = "Telemetry Session Traces";
+                taglineEl.textContent = "Universal Runtime IR Nodes and Spans";
+            } else if (tabId === 'graph') {
+                titleEl.textContent = "Intelligence Graph Explorer";
+                taglineEl.textContent = "Visualizing hierarchical context loops, beliefs and causal dependencies";
+                renderGraph();
+            } else if (tabId === 'causal') {
+                titleEl.textContent = "Causal Debugger";
+                taglineEl.textContent = "Backward trace analysis of tool exceptions and semantic regression points";
+                renderCausalDebugger();
+            } else if (tabId === 'suggestions') {
+                titleEl.textContent = "Optimization Engine Suggestions";
+                taglineEl.textContent = "Automated guardrail config diff patches generated in-process";
+            } else if (tabId === 'golden') {
+                titleEl.textContent = "Golden Test Suites";
+                taglineEl.textContent = "Fuzzy matched fixtures used for CI/CD regression gating";
+            }
+
+            // Update sidebar active selection
+            event.currentTarget.classList.add('active');
+        }
+
+        // ── Global Operations & Active Session ──
+        let activeSessionId = "sess_ir_001";
+        
+        function onSessionChange() {
+            activeSessionId = document.getElementById('session-select').value;
+            
+            // Refresh table traces
+            renderTracesTable();
+            
+            // Refresh graph if in graph tab
+            if (document.getElementById('tab-graph').classList.contains('active-tab')) {
+                renderGraph();
+            }
+            // Refresh causal debugger if in causal tab
+            if (document.getElementById('tab-causal').classList.contains('active-tab')) {
+                renderCausalDebugger();
+            }
+        }
+
+        // ── Render Dashboard Suggestions & Golden Suite ──
+        function renderDashboard() {
+            // Render Suggestions
+            const container = document.getElementById('suggestions-container');
+            container.innerHTML = '';
+            
+            document.getElementById('suggestions-count').textContent = `${suggestions.length} Active Suggestion${suggestions.length !== 1 ? 's' : ''}`;
+            
+            if (suggestions.length === 0) {
+                container.innerHTML = `
+                    <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        No active rule optimization suggestions. Your guardrails are fully aligned.
+                    </div>
+                `;
+            } else {
+                suggestions.forEach((sug, idx) => {
+                    const card = document.createElement('div');
+                    card.className = "suggestion-card";
+                    card.innerHTML = `
+                        <div class="suggestion-meta">
+                            <span style="font-weight: 700;">Rule Triggered: ${sug.rule}</span>
+                            <span class="risk-badge ${sug.risk}">Risk Tier: ${sug.risk}</span>
+                        </div>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                            ${sug.desc}
+                        </p>
+                        <code-block>${sug.diff}</code-block>
+                        <div class="action-bar">
+                            <button class="btn" onclick="approveSuggestion(${idx})">Approve & Merge Diff</button>
+                            <button class="btn btn-outline" onclick="dismissSuggestion(${idx})">Dismiss</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            // Render Golden Suite summary
+            const goldenSummary = document.getElementById('golden-suite-summary');
+            goldenSummary.innerHTML = '';
+            goldenTests.forEach(test => {
+                const tr = document.createElement('tr');
+                const badgeClass = test.status === 'active' ? 'active' : 'review';
+                tr.innerHTML = `
+                    <td>${test.name}</td>
+                    <td><span class="badge-status ${badgeClass}">${test.status}</span></td>
+                `;
+                goldenSummary.appendChild(tr);
+            });
+            
+            document.getElementById('dashboard-active-tests').textContent = goldenTests.length;
+        }
+
+        function approveSuggestion(idx) {
+            alert("Success: Diff merged! Guardrail config updated inside veri.yaml.");
+            suggestions.splice(idx, 1);
+            renderDashboard();
+            renderSuggestionsInbox();
+        }
+
+        function dismissSuggestion(idx) {
+            suggestions.splice(idx, 1);
+            renderDashboard();
+            renderSuggestionsInbox();
+        }
+
+        // ── Render Suggestions Inbox Tab ──
+        function renderSuggestionsInbox() {
+            const container = document.getElementById('suggestions-inbox-container');
+            container.innerHTML = '';
+            
+            if (suggestions.length === 0) {
+                container.innerHTML = `
+                    <div style="color: var(--text-secondary); text-align: center; padding: 3rem;">
+                        No pending rule optimizations in inbox.
+                    </div>
+                `;
+            } else {
+                suggestions.forEach((sug, idx) => {
+                    const card = document.createElement('div');
+                    card.className = "suggestion-card";
+                    card.style.backgroundColor = "var(--bg-surface)";
+                    card.innerHTML = `
+                        <div class="suggestion-meta">
+                            <span style="font-weight: 700; font-size: 1rem;">Rule Triggered: ${sug.rule}</span>
+                            <span class="risk-badge ${sug.risk}">Risk Tier: ${sug.risk}</span>
+                        </div>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            ${sug.desc}
+                        </p>
+                        <code-block>${sug.diff}</code-block>
+                        <div class="action-bar">
+                            <button class="btn" onclick="approveSuggestion(${idx})">Approve & Merge Diff</button>
+                            <button class="btn btn-outline" onclick="dismissSuggestion(${idx})">Dismiss</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+        }
+
+        // ── Render Golden Tests Tab ──
+        function renderGoldenTests() {
+            const tbody = document.getElementById('golden-tests-table-body');
+            tbody.innerHTML = '';
+            goldenTests.forEach((test, idx) => {
+                const tr = document.createElement('tr');
+                const badgeClass = test.status === 'active' ? 'active' : 'review';
+                tr.innerHTML = `
+                    <td style="font-family: var(--mono); font-size: 0.8rem;">${test.id}</td>
+                    <td style="font-weight: 600;">${test.name}</td>
+                    <td style="color: var(--text-secondary);">${test.input}</td>
+                    <td style="color: var(--text-secondary); font-family: var(--mono); font-size: 0.8rem;">${test.expected}</td>
+                    <td><span class="badge-status ${badgeClass}">${test.status}</span></td>
+                    <td>
+                        <button class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="runSingleGoldenTest(${idx})">Run</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function runSingleGoldenTest(idx) {
+            const test = goldenTests[idx];
+            alert(`Running golden test: ${test.name}...\nVerdict: PASS (Polarity, Facts and Cosine TF-IDF all passed).`);
+        }
+
+        function addNewGoldenTest() {
+            const id = "test_" + Date.now();
+            const name = prompt("Enter Test Case Name:");
+            if (!name) return;
+            const input = prompt("Enter Input Prompt:");
+            const expected = prompt("Enter Expected Golden Response:");
+            
+            goldenTests.push({
+                id: id,
+                name: name,
+                input: input,
+                expected: expected,
+                status: "active"
+            });
+            renderGoldenTests();
+            renderDashboard();
+        }
+
+        // ── Render Traces Table Tab ──
+        function renderTracesTable() {
+            const tbody = document.getElementById('traces-table-body');
+            tbody.innerHTML = '';
+            
+            const session = sessionsData[activeSessionId];
+            session.nodes.forEach(node => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-family: var(--mono); font-size: 0.8rem; color: var(--text-secondary);">${node.id}</td>
+                    <td><span class="node-kind-badge" style="background-color: var(--${node.kind}-color)">${node.kind}</span></td>
+                    <td style="font-weight: 600;">${node.label}</td>
+                    <td style="font-family: var(--mono);">${node.confidence !== null ? (node.confidence * 100).toFixed(0) + '%' : '-'}</td>
+                    <td style="font-family: var(--mono);">${node.cost > 0 ? '$' + node.cost.toFixed(4) : '-'}</td>
+                    <td style="font-family: var(--mono);">${node.latency}ms</td>
+                    <td style="color: var(--text-secondary); font-size: 0.8rem;">${new Date(node.timestamp * 1000).toISOString().split('T')[1].slice(0, -1)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ── Render Graph Tab (SVG custom layout) ──
+        let zoomScale = 1.0;
+        let panX = 0;
+        let panY = 0;
+
+        function renderGraph() {
+            const session = sessionsData[activeSessionId];
+            const canvasContent = document.getElementById('canvas-content');
+            canvasContent.innerHTML = '';
+
+            // Compute hierarchical positioning
+            // For simple linear and branching tree layouts:
+            // Calculate column position based on edge connections
+            const nodePositions = {};
+            const colSpacing = 220;
+            const rowSpacing = 120;
+            
+            // Layout algorithm (Intent: col 0, Knowledge/Reasoning: col 1, Action/Decision: col 2, Error/Outcome: col 3)
+            const nodeKindColumns = {
+                "intent": 0,
+                "knowledge": 1,
+                "reasoning": 1,
+                "action": 2,
+                "decision": 2,
+                "error": 3,
+                "outcome": 3
+            };
+
+            const columns = [[], [], [], []];
+            session.nodes.forEach(node => {
+                const col = nodeKindColumns[node.kind] || 0;
+                columns[col].push(node);
+            });
+
+            columns.forEach((nodesInCol, colIdx) => {
+                const startY = 200 - ((nodesInCol.length - 1) * rowSpacing / 2);
+                nodesInCol.forEach((node, nodeIdx) => {
+                    nodePositions[node.id] = {
+                        x: 80 + colIdx * colSpacing,
+                        y: startY + nodeIdx * rowSpacing
+                    };
+                });
+            });
+
+            // Draw Edges
+            session.edges.forEach(edge => {
+                const sourcePos = nodePositions[edge.source];
+                const targetPos = nodePositions[edge.target];
+                if (!sourcePos || !targetPos) return;
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", sourcePos.x + 85); // Right edge of rect
+                line.setAttribute("y1", sourcePos.y);
+                line.setAttribute("x2", targetPos.x - 85); // Left edge of rect
+                line.setAttribute("y2", targetPos.y);
+                line.setAttribute("stroke", edge.kind === "causes" ? "var(--success)" : "var(--border)");
+                line.setAttribute("stroke-width", "2");
+                if (edge.kind === "causes") {
+                    line.setAttribute("marker-end", "url(#arrow-causes)");
+                    line.setAttribute("stroke-dasharray", "4,4"); // Animated pulses
+                } else {
+                    line.setAttribute("marker-end", "url(#arrow)");
+                }
+                
+                canvasContent.appendChild(line);
+
+                // Edge label text
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", (sourcePos.x + targetPos.x) / 2);
+                text.setAttribute("y", (sourcePos.y + targetPos.y) / 2 - 8);
+                text.setAttribute("fill", "var(--text-secondary)");
+                text.setAttribute("font-size", "9px");
+                text.setAttribute("font-family", "var(--mono)");
+                text.setAttribute("text-anchor", "middle");
+                text.textContent = edge.kind;
+                canvasContent.appendChild(text);
+            });
+
+            // Draw Nodes
+            session.nodes.forEach(node => {
+                const pos = nodePositions[node.id];
+                if (!pos) return;
+
+                const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                group.style.cursor = "pointer";
+                group.setAttribute("transform", `translate(${pos.x}, ${pos.y})`);
+                group.onclick = () => selectNode(node);
+
+                // Rounded Rect
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", "-85");
+                rect.setAttribute("y", "-40");
+                rect.setAttribute("width", "170");
+                rect.setAttribute("height", "80");
+                rect.setAttribute("rx", "8");
+                rect.setAttribute("fill", "var(--bg-surface-elevated)");
+                rect.setAttribute("stroke", `var(--${node.kind}-color)`);
+                rect.setAttribute("stroke-width", "1.5");
+                
+                // Add glowing drop shadow filter dynamically
+                rect.style.filter = `drop-shadow(0 0 4px var(--${node.kind}-color))`;
+                
+                group.appendChild(rect);
+
+                // Node Kind Label (Top small)
+                const kindText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                kindText.setAttribute("x", "-75");
+                kindText.setAttribute("y", "-22");
+                kindText.setAttribute("fill", `var(--${node.kind}-color)`);
+                kindText.setAttribute("font-size", "8px");
+                kindText.setAttribute("font-weight", "800");
+                kindText.setAttribute("text-transform", "uppercase");
+                kindText.textContent = node.kind;
+                group.appendChild(kindText);
+
+                // Main Title Label
+                const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                labelText.setAttribute("x", "-75");
+                labelText.setAttribute("y", "-3");
+                labelText.setAttribute("fill", "var(--text-primary)");
+                labelText.setAttribute("font-size", "10px");
+                labelText.setAttribute("font-weight", "600");
+                
+                // Truncate label if too long
+                let label = node.label;
+                if (label.length > 25) label = label.slice(0, 22) + "...";
+                labelText.textContent = label;
+                group.appendChild(labelText);
+
+                // Metric text (Confidence or Latency)
+                const metricText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                metricText.setAttribute("x", "-75");
+                metricText.setAttribute("y", "18");
+                metricText.setAttribute("fill", "var(--text-secondary)");
+                metricText.setAttribute("font-size", "9px");
+                metricText.setAttribute("font-family", "var(--mono)");
+                
+                let details = `L: ${node.latency}ms`;
+                if (node.confidence !== null) {
+                    details += ` | C: ${(node.confidence * 100).toFixed(0)}%`;
+                }
+                metricText.textContent = details;
+                group.appendChild(metricText);
+
+                canvasContent.appendChild(group);
+            });
+
+            applyGraphTransform();
+        }
+
+        function applyGraphTransform() {
+            const container = document.getElementById('canvas-content');
+            container.setAttribute("transform", `translate(${panX}, ${panY}) scale(${zoomScale})`);
+        }
+
+        function zoomGraph(factor) {
+            zoomScale *= factor;
+            applyGraphTransform();
+        }
+
+        function resetGraphView() {
+            zoomScale = 1.0;
+            panX = 0;
+            panY = 0;
+            applyGraphTransform();
+        }
+
+        // SVG Canvas Dragging / Panning
+        const svg = document.getElementById('svg-canvas');
+        let isDragging = false;
+        let startX, startY;
+
+        svg.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX - panX;
+            startY = e.clientY - panY;
+        });
+
+        svg.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            panX = e.clientX - startX;
+            panY = e.clientY - startY;
+            applyGraphTransform();
+        });
+
+        svg.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // ── Node Inspector Handler ──
+        function selectNode(node) {
+            const inspector = document.getElementById('node-inspector');
+            inspector.innerHTML = `
+                <div class="inspector-title">
+                    <span class="node-kind-badge" style="background-color: var(--${node.kind}-color)">${node.kind}</span>
+                    <span style="margin-top: 0.5rem;">${node.label}</span>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.5rem;">Epistemic State</div>
+                    <div class="meta-list">
+                        <div class="meta-item">
+                            <span class="meta-item-label">Confidence</span>
+                            <span class="meta-item-value" style="color: ${node.confidence >= 0.8 ? 'var(--success)' : node.confidence >= 0.5 ? 'var(--warning)' : 'var(--danger)'}">
+                                ${node.confidence !== null ? (node.confidence * 100).toFixed(0) + '%' : 'N/A'}
+                            </span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-item-label">Uncertainty</span>
+                            <span class="meta-item-value">${node.uncertainty !== undefined ? (node.uncertainty * 100).toFixed(0) + '%' : '0%'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-item-label">Assumptions</span>
+                            <span class="meta-item-value" style="font-size: 0.8rem; font-family: var(--sans);">${node.assumptions && node.assumptions.length ? node.assumptions.join(', ') : 'None'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-item-label">Evidence IDs</span>
+                            <span class="meta-item-value" style="font-size: 0.8rem;">${node.evidence && node.evidence.length ? node.evidence.join(', ') : 'None'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.5rem;">Resource Bounds</div>
+                    <div class="meta-list">
+                        <div class="meta-item">
+                            <span class="meta-item-label">Compute Cost</span>
+                            <span class="meta-item-value">${node.cost > 0 ? '$' + node.cost.toFixed(4) : '$0.0000'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-item-label">Execution Latency</span>
+                            <span class="meta-item-value">${node.latency}ms</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-item-label">Input Tokens</span>
+                            <span class="meta-item-value">${node.tokens && node.tokens.input ? node.tokens.input : 0}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-item-label">Output Tokens</span>
+                            <span class="meta-item-value">${node.tokens && node.tokens.output ? node.tokens.output : 0}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 0.5rem; overflow: hidden;">
+                    <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Node Structured Content</div>
+                    <div style="background-color: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; font-family: var(--mono); font-size: 0.75rem; overflow-y: auto; flex-grow: 1; white-space: pre-wrap;">${JSON.stringify(node.content, null, 2)}</div>
+                </div>
+            `;
+        }
+
+        // ── Render Causal Debugger Tab ──
+        function renderCausalDebugger() {
+            const session = sessionsData[activeSessionId];
+            const container = document.getElementById('causal-debugger-content');
+            
+            if (!session.causal) {
+                container.innerHTML = `
+                    <div style="color: var(--text-secondary); text-align: center; padding: 4rem;">
+                        No failures detected in this session trace. Causal tree is clean.
+                    </div>
+                `;
+                return;
+            }
+
+            let chainHTML = '';
+            session.causal.chain.forEach((step, idx) => {
+                const isRoot = idx === 0;
+                const isProximate = idx === session.causal.chain.length - 1;
+                const typeClass = isRoot ? 'root' : isProximate ? 'proximate' : '';
+                
+                chainHTML += `
+                    <div class="causal-chain-node-row">
+                        <div class="causal-chain-card ${typeClass}">
+                            <div class="causal-chain-card-header" style="color: ${isRoot ? 'var(--warning)' : isProximate ? 'var(--danger)' : 'var(--text-secondary)'}">
+                                <span>${isRoot ? 'Root Cause' : isProximate ? 'Proximate Cause / Breach' : 'Contributing Link'}</span>
+                                <span style="font-family: var(--mono); font-size: 0.7rem;">${step.type}</span>
+                            </div>
+                            <div class="causal-chain-card-body">
+                                <strong>${step.label}</strong> — ${step.desc}
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                if (idx < session.causal.chain.length - 1) {
+                    chainHTML += `<div class="causal-chain-arrow">↓</div>`;
+                }
+            });
+
+            container.innerHTML = `
+                <div style="margin-bottom: 2rem;">
+                    <div style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.5rem;">Causal Summary</div>
+                    <div style="font-size: 1.15rem; font-weight: 600; line-height: 1.4; color: var(--danger);">
+                        ${session.causal.proximate}
+                    </div>
+                    <div style="color: var(--text-secondary); font-size: 0.95rem; margin-top: 0.5rem; line-height: 1.4;">
+                        <span style="color: var(--warning); font-weight: 600;">Root Cause Analysis:</span> ${session.causal.root}
+                    </div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 1rem;">Causal Resolution Chain</div>
+                    ${chainHTML}
+                </div>
+            `;
+        }
+
+        // ── Ingestion Telemetry Simulator Stream ──
+        let simulatorInterval = null;
+        let simulatorEventsCount = 0;
+
+        function toggleTelemetrySimulator() {
+            const btnText = document.getElementById('simulator-btn-text');
+            const stream = document.getElementById('telemetry-stream');
+            
+            if (simulatorInterval) {
+                // Stop Simulator
+                clearInterval(simulatorInterval);
+                simulatorInterval = null;
+                btnText.textContent = "Start Telemetry Simulator";
+                
+                const item = document.createElement('div');
+                item.className = "stream-item";
+                item.textContent = `[SYSTEM] Ingestion stream paused. Total simulated logs: ${simulatorEventsCount}`;
+                stream.appendChild(item);
+            } else {
+                // Start Simulator
+                btnText.textContent = "Stop Telemetry Simulator";
+                
+                const startItem = document.createElement('div');
+                startItem.className = "stream-item session";
+                startItem.textContent = `[INGEST] Connected to live verification channel. Emitting Runtime IR.`;
+                stream.appendChild(startItem);
+                
+                const mockLogs = [
+                    { t: "session", msg: "[SESSION] sess_sim_109 started for agent 'support-v3'" },
+                    { t: "node", msg: "[NODE] Created: kind=intent, label='Cancel renewal'" },
+                    { t: "node", msg: "[NODE] Created: kind=knowledge, label='get_contract_details'" },
+                    { t: "edge", msg: "[EDGE] intent ──[decomposes_into]──> knowledge" },
+                    { t: "node", msg: "[NODE] Completed: kind=knowledge, label='get_contract_details' (Latency: 45ms)" },
+                    { t: "node", msg: "[NODE] Created: kind=reasoning, label='evaluate_options'" },
+                    { t: "edge", msg: "[EDGE] knowledge ──[supports]──> reasoning" },
+                    { t: "node", msg: "[NODE] Created: kind=action, label='order_lookup'" },
+                    { t: "edge", msg: "[EDGE] reasoning ──[causes]──> action" },
+                    { t: "node", msg: "[NODE] Completed: kind=action, label='order_lookup' (Latency: 120ms)" },
+                    { t: "node", msg: "[NODE] Completed: kind=reasoning, label='evaluate_options' (Latency: 1400ms)" },
+                    { t: "node", msg: "[NODE] Created: kind=decision, label='issue_refund'" },
+                    { t: "edge", msg: "[EDGE] reasoning ──[causes]──> decision" },
+                    { t: "node", msg: "[NODE] Completed: kind=decision, label='issue_refund' (Latency: 600ms)" },
+                    { t: "session", msg: "[SESSION] sess_sim_109 completed successfully." }
+                ];
+                
+                let idx = 0;
+                simulatorInterval = setInterval(() => {
+                    if (idx < mockLogs.length) {
+                        const log = mockLogs[idx];
+                        const item = document.createElement('div');
+                        item.className = `stream-item ${log.t}`;
+                        item.textContent = `[${new Date().toISOString().split('T')[1].slice(0, -1)}] ${log.msg}`;
+                        stream.appendChild(item);
+                        simulatorEventsCount++;
+                        idx++;
+                    } else {
+                        idx = 0; // Loop logs
+                    }
+                }, 1000);
+            }
+        }
+
+        // Initialize all tabs on load
+        renderDashboard();
+        renderTracesTable();
+        renderSuggestionsInbox();
+        renderGoldenTests();
+    </script>
+</body>
+</html>

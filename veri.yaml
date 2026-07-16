@@ -1,0 +1,42 @@
+# VERI Configuration Descriptor File
+# Configures local L0 guardrails, tool execution limits, and behavioral assertion suites.
+
+agent:
+  id: "support-v3"
+  name: "Customer Support Agent"
+  version: "0.1.0"
+  project_id: "proj_alpha"
+
+# ── Local L0 Guardrails (In-Process Circuit Breakers) ──────────────────
+guardrails:
+  # Maximum USD token cost allowed per session
+  cost_limit: 5.00
+  on_cost_exceed: "halt_with_explanation" # Options: halt_with_explanation, return_partial
+
+  # Maximum number of LLM iterations/calls allowed per session (prevents infinite loops)
+  call_limit: 30
+  on_call_exceed: "halt_with_explanation"
+
+  # Tool-specific execution rules
+  tool_limits:
+    - tool: "order_lookup"
+      max_calls: 4
+      on_exceed: "return_explanation"
+    - tool: "refund_check"
+      max_calls: 2
+      on_exceed: "return_explanation"
+
+# ── Behavioral Assertions & Golden Testing Configuration ──────────────
+testing:
+  # The default minimum TF-IDF semantic cosine similarity threshold for passing
+  semantic_similarity_threshold: 0.65
+
+  # Enable the optional LLM-as-a-Judge evaluation layer for deep logic checks
+  use_llm_judge: false
+
+  # Tools that are strictly forbidden from being executed (safety enforcement)
+  forbidden_tools:
+    - "delete_order"
+    - "drop_table"
+    - "update_payment"
+    - "bypass_security"

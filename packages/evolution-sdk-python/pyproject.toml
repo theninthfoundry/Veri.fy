@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "veri-sdk"
+version = "0.1.0"
+description = "CI/CD and Quality Infrastructure Layer for AI Agents"
+readme = "README.md"
+authors = [{ name = "VERI Core Architecture Team" }]
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0",
+    "ulid-py>=1.1.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0"
+]
+testing = [
+    "numpy>=1.24.0"
+]
+
+[project.scripts]
+veri = "veri.cli:main"
