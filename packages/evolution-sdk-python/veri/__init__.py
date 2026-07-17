@@ -14,6 +14,9 @@ from .escalation import (
     compute_approval_signature,
     verify_approval_signature,
 )
+from .fingerprint import RuntimeFingerprint, capture_current_fingerprint, compute_behavior_hash
+from .contracts import BehaviorContract, ContractViolation, behavior_contract
+from .lineage import BehaviorBOM
 
 logger = logging.getLogger("veri")
 
