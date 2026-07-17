@@ -14,8 +14,8 @@ import time
 # Add SDK to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "packages", "evolution-sdk-python"))
 
-import veri
-from veri.ir import NodeKind, EdgeKind
+import veri  # pyrefly: ignore [missing-import]
+from veri.ir import NodeKind, EdgeKind  # pyrefly: ignore [missing-import]
 
 
 # ── Mock HTTP transport to capture emitted payloads ─────────────────

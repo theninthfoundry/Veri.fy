@@ -11,8 +11,8 @@ import time
 # Add SDK to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "packages", "evolution-sdk-python"))
 
-import veri
-from veri.context import ExecutionSpanScope, active_session_context, VeriCostLimitExceeded
+import veri  # pyrefly: ignore [missing-import]
+from veri.context import ExecutionSpanScope, active_session_context, VeriCostLimitExceeded  # pyrefly: ignore [missing-import]
 
 
 # ── Mock the HTTP transport so we can inspect payloads ──────────────
@@ -113,7 +113,7 @@ print("=" * 60)
 print("TEST 3: Non-serializable object handling")
 print("=" * 60)
 
-from veri.context import safe_serialize
+from veri.context import safe_serialize  # pyrefly: ignore [missing-import]
 import json
 
 # Normal types
@@ -144,6 +144,75 @@ assert "connected=True" in parsed["repr"]
 print(f"  ✓ Non-serializable object fingerprinted: {parsed['type']}")
 
 print("\n✅ Test 3 passed — serialization boundary is safe.\n")
+
+
+# ── Test 4: Causal Ablation / Baseline Substitution ───────────────────
+
+print("=" * 60)
+print("TEST 4: Causal Ablation (Golden Baseline Substitution)")
+print("=" * 60)
+
+# 1. Run baseline session
+baseline_id = "sess_baseline_001"
+
+def tool_replay_fn(inp, *args, **kwargs):
+    return "correct_data" if inp == "input_ok" else "buggy_data"
+
+with veri.session(session_id=baseline_id, agent_id="test_agent", project_id="proj_alpha") as session:
+    client = veri.get_client()
+    with ExecutionSpanScope(
+        client,
+        category="tool",
+        name="data_fetcher",
+        input_data="input_ok",
+        replay_fn=tool_replay_fn,
+        capabilities=["is_replayable"]
+    ) as span:
+        tool_output = "correct_data"
+        tool_ref = span.complete(tool_output)
+
+    with ExecutionSpanScope(
+        client,
+        category="llm",
+        name="response_generator",
+        input_data=f"Process: {tool_ref}"
+    ) as span:
+        final_output = "Success: correct_data"
+        span.complete(final_output)
+
+# 2. Run experimental session with injected bug
+experimental_id = "sess_experimental_001"
+with veri.session(session_id=experimental_id, agent_id="test_agent", project_id="proj_alpha") as session_exp:
+    client = veri.get_client()
+    with ExecutionSpanScope(
+        client,
+        category="tool",
+        name="data_fetcher",
+        input_data="input_bad",  # Bug injected
+        replay_fn=tool_replay_fn,
+        capabilities=["is_replayable"]
+    ) as span:
+        tool_output = "buggy_data"
+        tool_ref = span.complete(tool_output)
+
+    with ExecutionSpanScope(
+        client,
+        category="llm",
+        name="response_generator",
+        input_data=f"Process: {tool_ref}"
+    ) as span:
+        final_output = "Failure: buggy_data"
+        span.complete(final_output)
+
+    # 3. Analyze failure
+    culprit_id = session_exp.analyze_failure(baseline_id)
+    
+    assert culprit_id is not None
+    culprit_node = session_exp.replay_graph.nodes[culprit_id]
+    assert culprit_node.name == "data_fetcher"
+    print(f"  ✓ Culprit successfully isolated via golden baseline substitution: {culprit_node.name}")
+
+print("\n✅ Test 4 passed — causal ablation working.\n")
 
 
 # ── Summary ─────────────────────────────────────────────────────────

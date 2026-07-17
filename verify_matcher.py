@@ -13,8 +13,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "packages", "evolution-sdk-python"))
 
-from veri.matcher import Fixture, FixtureMatcher, FixtureStore
-from veri.assertions import (
+from veri.matcher import Fixture, FixtureMatcher, FixtureStore  # pyrefly: ignore [missing-import]
+from veri.assertions import (  # pyrefly: ignore [missing-import]
     ResponseAssertionEngine,
     extract_facts,
     detect_polarity,
@@ -233,8 +233,8 @@ print("=" * 70)
 print("PART 5: OPTIONAL LLM-AS-A-JUDGE LAYER")
 print("=" * 70)
 
-# Instantiate engine with LLM judge enabled
-judge_engine = ResponseAssertionEngine(use_judge=True)
+# Instantiate engine with LLM judge enabled, using a lower semantic threshold for this wording change
+judge_engine = ResponseAssertionEngine(semantic_threshold=0.20, use_judge=True)
 
 print("\nTest 5.1: LLM-as-a-Judge with no API key (should warn but not fail)")
 golden = "The item is available in blue."

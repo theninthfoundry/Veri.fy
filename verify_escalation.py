@@ -12,11 +12,14 @@ import time
 import sys
 import os
 
+# Add SDK to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "packages", "evolution-sdk-python"))
+
 # Set environment variables for testing
 os.environ["VERI_API_KEY"] = "test_key_xyz"
 
-import veri
-from veri.escalation import compute_approval_signature, verify_approval_signature, EscalationRequired
+import veri  # pyrefly: ignore [missing-import]
+from veri.escalation import compute_approval_signature, verify_approval_signature, EscalationRequired  # pyrefly: ignore [missing-import]
 
 def run_e2e_verification():
     print("🚀 Starting VERI AAP E2E Verification Script...")

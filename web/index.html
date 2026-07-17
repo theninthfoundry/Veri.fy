@@ -778,6 +778,15 @@
     <!-- ── JavaScript Accountability Dashboard Engine ── -->
     <script>
         const API_BASE = "";
+        const API_KEY = "test_key_xyz";
+
+        async function fetchWithAuth(url, options = {}) {
+            if (!options.headers) {
+                options.headers = {};
+            }
+            options.headers["Authorization"] = `Bearer ${API_KEY}`;
+            return fetch(url, options);
+        }
         let pendingEscalations = [];
         let activeEscalation = null;
 
@@ -822,7 +831,7 @@
         // ── Load Control Policies ──
         async function loadPolicies(projectID) {
             try {
-                const res = await fetch(`${API_BASE}/api/v1/policies?project_id=${projectID}`);
+                const res = await fetchWithAuth(`${API_BASE}/api/v1/policies?project_id=${projectID}`);
                 if (res.ok) {
                     const policies = await res.json();
                     const tbody = document.getElementById('policies-table-body');
@@ -891,7 +900,7 @@
             };
 
             try {
-                const res = await fetch(`${API_BASE}/api/v1/policies`, {
+                const res = await fetchWithAuth(`${API_BASE}/api/v1/policies`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -916,7 +925,7 @@
         // ── Load Escalation Queue ──
         async function loadEscalations(projectID) {
             try {
-                const res = await fetch(`${API_BASE}/api/v1/escalations?project_id=${projectID}&status=pending`);
+                const res = await fetchWithAuth(`${API_BASE}/api/v1/escalations?project_id=${projectID}&status=pending`);
                 if (res.ok) {
                     pendingEscalations = await res.json();
                     renderPendingList();
@@ -1071,7 +1080,7 @@
 
             const url = `${API_BASE}/api/v1/escalations/${activeEscalation.id}/${action === 'approve' ? 'approve' : 'reject'}`;
             try {
-                const res = await fetch(url, {
+                const res = await fetchWithAuth(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ actor, reason })
@@ -1095,7 +1104,7 @@
         // ── Load Audit Trail Log ──
         async function loadAuditTrail() {
             try {
-                const res = await fetch(`${API_BASE}/api/v1/audit/log`);
+                const res = await fetchWithAuth(`${API_BASE}/api/v1/audit/log`);
                 if (res.ok) {
                     const logs = await res.json();
                     const tbody = document.getElementById('audit-log-body');

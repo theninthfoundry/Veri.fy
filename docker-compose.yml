@@ -6,9 +6,9 @@ services:
     image: postgres:16-alpine
     container_name: veri-postgres
     environment:
-      POSTGRES_USER: veri_admin
-      POSTGRES_PASSWORD: veri_password_2026
-      POSTGRES_DB: veri_db
+      POSTGRES_USER: ${POSTGRES_USER:-veri_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-veri_password_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-veri_db}
     ports:
       - "5432:5432"
     volumes:
@@ -74,8 +74,8 @@ services:
       - "9001:9001" # console port
       - "9000:9000" # API port
     environment:
-      MINIO_ROOT_USER: veri_minio_admin
-      MINIO_ROOT_PASSWORD: veri_minio_password
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-veri_minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-veri_minio_password}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data

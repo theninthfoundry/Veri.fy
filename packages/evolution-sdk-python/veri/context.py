@@ -72,22 +72,82 @@ def safe_serialize(obj: Any) -> str:
     if isinstance(obj, (str, int, float, bool, type(None))):
         return json.dumps(obj)
 
-    try:
-        return json.dumps(obj, default=str, ensure_ascii=False)
-    except (TypeError, ValueError, OverflowError):
-        pass
+    memo = set()
 
-    return json.dumps(
-        {
-            "__veri_unserializable__": True,
-            "type": type(obj).__name__,
-            "repr": repr(obj)[:250],
-            "id": id(obj),
-        }
-    )
+    def clean(o):
+        if id(o) in memo:
+            return {"__veri_cycle__": True, "id": id(o)}
+        if isinstance(o, (str, int, float, bool, type(None))):
+            return o
+
+        memo.add(id(o))
+        try:
+            if isinstance(o, dict):
+                return {str(k): clean(v) for k, v in o.items()}
+            if isinstance(o, (list, tuple, set)):
+                return [clean(v) for v in o]
+            return {
+                "__veri_unserializable__": True,
+                "type": type(o).__name__,
+                "repr": repr(o)[:250],
+                "id": id(o),
+            }
+        finally:
+            memo.remove(id(o))
+
+    try:
+        return json.dumps(clean(obj), ensure_ascii=False)
+    except Exception:
+        return json.dumps(
+            {
+                "__veri_unserializable__": True,
+                "type": type(obj).__name__,
+                "repr": repr(obj)[:250],
+                "id": id(obj),
+            }
+        )
 
 
 # ── Session Context ────────────────────────────────────────────────
+
+
+class ReplayNode:
+    def __init__(
+        self,
+        id: str,
+        category: str,
+        name: str,
+        input_data: Any,
+        output_data: Any = None,
+        capabilities: Optional[List[str]] = None,
+        replay_fn: Optional[Any] = None,
+        replay_args: Optional[Tuple] = None,
+        replay_kwargs: Optional[Dict] = None,
+    ):
+        self.id = id
+        self.category = category
+        self.name = name
+        self.input_data = input_data
+        self.output_data = output_data
+        self.capabilities = capabilities or []
+        self.replay_fn = replay_fn
+        self.replay_args = replay_args or ()
+        self.replay_kwargs = replay_kwargs or {}
+
+
+class ReplayGraph:
+    def __init__(self):
+        self.nodes: Dict[str, ReplayNode] = {}
+        self.edges: List[Tuple[str, str, str]] = []  # (source, target, kind)
+
+    def add_node(self, node: ReplayNode) -> None:
+        self.nodes[node.id] = node
+
+    def add_edge(self, source_id: str, target_id: str, kind: str) -> None:
+        self.edges.append((source_id, target_id, kind))
+
+
+_session_registry: Dict[str, "AgentSessionContext"] = {}
 
 
 class AgentSessionContext:
@@ -117,6 +177,7 @@ class AgentSessionContext:
 
         self.cost_limit = cost_limit
         self.call_limit = call_limit
+        self.replay_graph = ReplayGraph()
 
         self.total_cost_usd: float = 0.0
         self.llm_call_count: int = 0
@@ -131,6 +192,7 @@ class AgentSessionContext:
     def __enter__(self):
         self._session_token = active_session_context.set(self)
         self._span_token = active_span_stack.set([])
+        _session_registry[self.session_id] = self
 
         # Load escalation policies for this project
         self.escalation_engine.load_policies(self.project_id)
@@ -261,6 +323,34 @@ class AgentSessionContext:
             force_escalation_risk=risk,
         )
 
+    def analyze_failure(self, baseline_session_id: str) -> Optional[str]:
+        """
+        Runs counterfactual golden-baseline substitution over the graph.
+        For each replayable node in the current session:
+          1. Find the corresponding node in the baseline session (by label/name).
+          2. If the baseline node exists, run the node's replay_fn using the baseline input.
+          3. Determine if the output matches the baseline output (recovered).
+          4. If it does, we have verified that substituting this baseline input resolves the failure,
+             indicating this node is the causal culprit!
+        """
+        baseline_session = _session_registry.get(baseline_session_id)
+        if not baseline_session:
+            return None
+
+        baseline_nodes_by_name = {n.name: n for n in baseline_session.replay_graph.nodes.values()}
+
+        for node_id, node in self.replay_graph.nodes.items():
+            if "is_replayable" in node.capabilities and node.replay_fn:
+                base_node = baseline_nodes_by_name.get(node.name)
+                if base_node:
+                    try:
+                        replayed_output = node.replay_fn(base_node.input_data, *node.replay_args, **node.replay_kwargs)
+                        if replayed_output == base_node.output_data:
+                            return node.id
+                    except Exception:
+                        pass
+        return None
+
 
 # ── Execution Span ─────────────────────────────────────────────────
 
@@ -309,6 +399,10 @@ class ExecutionSpanScope:
         # Accountability fields
         force_escalation_action_type: Optional[str] = None,
         force_escalation_risk: float = 0.0,
+        # Replay fields
+        replay_fn: Optional[Any] = None,
+        replay_args: Optional[Tuple] = None,
+        replay_kwargs: Optional[Dict] = None,
     ):
         self.client = client
         from .ir import NodeKind
@@ -365,6 +459,10 @@ class ExecutionSpanScope:
         self._force_escalation_risk = force_escalation_risk
         self._escalation_record: Optional[EscalationRecord] = None
 
+        self.replay_fn = replay_fn
+        self.replay_args = replay_args
+        self.replay_kwargs = replay_kwargs
+
     def __enter__(self):
         session = active_session_context.get(None)
         if not session:
@@ -377,6 +475,18 @@ class ExecutionSpanScope:
         stack.append((self.span_id, self.category))
 
         self.start_time = time.time()
+
+        # Add node to session replay graph
+        session.replay_graph.add_node(ReplayNode(
+            id=self.span_id,
+            category=self.category,
+            name=self.name,
+            input_data=self.input_data,
+            capabilities=self.capabilities,
+            replay_fn=self.replay_fn,
+            replay_args=self.replay_args,
+            replay_kwargs=self.replay_kwargs,
+        ))
 
         # 1. Emit measured dataflow edges based on extracted IRRefs
         for source_node_id, source_field in self.measured_dependencies:
@@ -398,6 +508,7 @@ class ExecutionSpanScope:
                 "edge_confidence_source": "measured"
             }
             self.client.emit_async(edge_payload)
+            session.replay_graph.add_edge(source_node_id, self.span_id, "depends_on")
 
         # 2. If there's a parent, dynamically build and emit a structural RuntimeEdge
         if self.parent_span_id and parent_category:
@@ -426,6 +537,7 @@ class ExecutionSpanScope:
                 "edge_confidence_source": "inferred"
             })
             self.client.emit_async(edge_dict)
+            session.replay_graph.add_edge(self.parent_span_id, self.span_id, edge_kind)
 
         # 3. Emit RuntimeNode starting event
         self.client.emit_async(
@@ -560,6 +672,9 @@ class ExecutionSpanScope:
         if exc_type is not None:
             session = active_session_context.get(None)
             if session:
+                node = session.replay_graph.nodes.get(self.span_id)
+                if node:
+                    node.output_data = f"Error: {exc_val}"
                 duration_ms = int((time.time() - self.start_time) * 1000)
                 self.client.emit_async(
                     {
@@ -601,6 +716,11 @@ class ExecutionSpanScope:
         Returns a transparent IRRef tracking wrapper.
         """
         session = active_session_context.get(None)
+        if session:
+            node = session.replay_graph.nodes.get(self.span_id)
+            if node:
+                node.output_data = output_data
+
         if not session:
             return IRRef(output_data, self.span_id, "content")
 

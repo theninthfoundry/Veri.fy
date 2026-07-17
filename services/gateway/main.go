@@ -66,22 +66,78 @@ type GatewayServer struct {
 	natsJS nats.JetStreamContext
 }
 
+func AuthMiddleware(expectedKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Missing Authorization header"})
+			c.Abort()
+			return
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Authorization header must be in Bearer format"})
+			c.Abort()
+			return
+		}
+
+		token := parts[1]
+		if token != expectedKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Invalid API key"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func main() {
 	log.Println("Starting VERI Ingestion Gateway Server...")
 
 	// Get configuration from env
+	env := os.Getenv("ENV")
+	ginMode := os.Getenv("GIN_MODE")
+	apiKey := os.Getenv("VERI_API_KEY")
+	if apiKey == "" {
+		if env == "production" || ginMode == "release" {
+			log.Fatalf("Fatal: VERI_API_KEY must be set in production environment!")
+		} else {
+			log.Println("WARNING: VERI_API_KEY is not set. Defaulting to 'test_key_xyz' for development.")
+			apiKey = "test_key_xyz"
+		}
+	}
+
 	chURL := os.Getenv("CLICKHOUSE_URL")
 	if chURL == "" {
-		chURL = "clickhouse://localhost:9000?database=veri"
+		if env == "production" || ginMode == "release" {
+			log.Fatalf("Fatal: CLICKHOUSE_URL must be set in production environment!")
+		} else {
+			chURL = "clickhouse://localhost:9000?database=veri"
+		}
 	}
+
 	pgURL := os.Getenv("DATABASE_URL")
 	if pgURL == "" {
-		pgURL = "postgresql://veri_admin:veri_password_2026@localhost:5432/veri_db?sslmode=disable"
+		if env == "production" || ginMode == "release" {
+			log.Fatalf("Fatal: DATABASE_URL must be set in production environment!")
+		} else {
+			pgURL = "postgresql://veri_admin:veri_password_2026@localhost:5432/veri_db?sslmode=disable"
+		}
+	} else if (env == "production" || ginMode == "release") && strings.Contains(pgURL, "veri_password_2026") {
+		log.Fatalf("Fatal: Production DATABASE_URL contains default hardcoded password!")
 	}
+
 	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {
-		natsURL = "nats://localhost:4222"
+		if env == "production" || ginMode == "release" {
+			log.Fatalf("Fatal: NATS_URL must be set in production environment!")
+		} else {
+			natsURL = "nats://localhost:4222"
+		}
 	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -177,43 +233,47 @@ func main() {
 		log.Printf("Warning: Cockpit UI file not found at %s. Serve endpoint disabled.", indexPath)
 	}
 
-	// Health and Ingestion endpoints
+	// Health endpoint (public)
 	r.GET("/health", server.HandleHealth)
-	r.POST("/v1/events", server.HandleIngestion)
-	r.POST("/api/v1/ingest", server.HandleIngestV2)
 
-	// Cockpit Backend APIs
-	r.GET("/api/sessions", server.HandleGetSessions)
-	r.GET("/api/sessions/:id", server.HandleGetSessionDetails)
-	r.GET("/api/suggestions", server.HandleGetSuggestions)
-	r.GET("/api/predictions", server.HandleGetPredictions)
-	r.POST("/api/suggestions/:id/approve", server.HandleApproveSuggestion)
-	r.POST("/api/suggestions/:id/dismiss", server.HandleDismissSuggestion)
-	r.GET("/api/golden", server.HandleGetGoldenTests)
-	r.POST("/api/golden", server.HandleCreateGoldenTest)
+	// Authenticated routes
+	auth := r.Group("/")
+	auth.Use(AuthMiddleware(apiKey))
+	{
+		auth.POST("/v1/events", server.HandleIngestion)
+		auth.POST("/api/v1/ingest", server.HandleIngestV2)
 
-	// ── Accountability Platform APIs ──────────────────────────────
+		// Cockpit Backend APIs
+		auth.GET("/api/sessions", server.HandleGetSessions)
+		auth.GET("/api/sessions/:id", server.HandleGetSessionDetails)
+		auth.GET("/api/suggestions", server.HandleGetSuggestions)
+		auth.GET("/api/predictions", server.HandleGetPredictions)
+		auth.POST("/api/suggestions/:id/approve", server.HandleApproveSuggestion)
+		auth.POST("/api/suggestions/:id/dismiss", server.HandleDismissSuggestion)
+		auth.GET("/api/golden", server.HandleGetGoldenTests)
+		auth.POST("/api/golden", server.HandleCreateGoldenTest)
 
-	// Escalation Policy CRUD
-	r.GET("/api/v1/policies", server.HandleListPolicies)
-	r.POST("/api/v1/policies", server.HandleCreatePolicy)
-	r.PUT("/api/v1/policies/:id", server.HandleUpdatePolicy)
-	r.DELETE("/api/v1/policies/:id", server.HandleDeletePolicy)
+		// ── Accountability Platform APIs ──────────────────────────────
+		auth.GET("/api/v1/policies", server.HandleListPolicies)
+		auth.POST("/api/v1/policies", server.HandleCreatePolicy)
+		auth.PUT("/api/v1/policies/:id", server.HandleUpdatePolicy)
+		auth.DELETE("/api/v1/policies/:id", server.HandleDeletePolicy)
 
-	// Escalation Resolution
-	r.GET("/api/v1/escalations", server.HandleListEscalations)
-	r.GET("/api/v1/escalations/:id", server.HandleGetEscalation)
-	r.POST("/api/v1/escalations", server.HandleCreateEscalation)
-	r.POST("/api/v1/escalations/:id/approve", server.HandleApproveEscalation)
-	r.POST("/api/v1/escalations/:id/reject", server.HandleRejectEscalation)
+		// Escalation Resolution
+		auth.GET("/api/v1/escalations", server.HandleListEscalations)
+		auth.GET("/api/v1/escalations/:id", server.HandleGetEscalation)
+		auth.POST("/api/v1/escalations", server.HandleCreateEscalation)
+		auth.POST("/api/v1/escalations/:id/approve", server.HandleApproveEscalation)
+		auth.POST("/api/v1/escalations/:id/reject", server.HandleRejectEscalation)
 
-	// Audit Trail
-	r.GET("/api/v1/audit/log", server.HandleGetAuditLog)
+		// Audit Trail
+		auth.GET("/api/v1/audit/log", server.HandleGetAuditLog)
 
-	// Replay Engine
-	r.POST("/api/v1/replay", server.HandleReplay)
-	r.POST("/api/v1/replay/ablation", server.HandleAblation)
-	r.GET("/api/v1/sessions/:a/diff/:b", server.HandleSessionDiff)
+		// Replay Engine
+		auth.POST("/api/v1/replay", server.HandleReplay)
+		auth.POST("/api/v1/replay/ablation", server.HandleAblation)
+		auth.GET("/api/v1/sessions/:a/diff/:b", server.HandleSessionDiff)
+	}
 
 	// Start escalation timeout checker
 	go server.escalationTimeoutChecker()
@@ -884,8 +944,32 @@ func (s *GatewayServer) HandleGetSuggestions(c *gin.Context) {
 	c.JSON(http.StatusOK, sugs)
 }
 
+func isSuggestionRestricted(m map[string]any) bool {
+	if guardrails, ok := m["guardrails"].(map[string]any); ok {
+		if _, exists := guardrails["cost_limit"]; exists {
+			return true
+		}
+		if _, exists := guardrails["call_limit"]; exists {
+			return true
+		}
+	}
+	if testing, ok := m["testing"].(map[string]any); ok {
+		if _, exists := testing["forbidden_tools"]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+type ApproveSuggestionRequest struct {
+	ConfirmSafetyOverride bool `json:"confirm_safety_override"`
+}
+
 func (s *GatewayServer) HandleApproveSuggestion(c *gin.Context) {
 	id := c.Param("id")
+
+	var req ApproveSuggestionRequest
+	_ = c.ShouldBindJSON(&req)
 
 	// 1. Fetch config_diff from Postgres
 	var configDiff string
@@ -900,6 +984,27 @@ func (s *GatewayServer) HandleApproveSuggestion(c *gin.Context) {
 	if err := yaml.Unmarshal([]byte(configDiff), &diffConfig); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse suggestion config diff: " + err.Error()})
 		return
+	}
+
+	// 2b. Restrict suggestions modifying safety parameters
+	if isSuggestionRestricted(diffConfig) {
+		if !req.ConfirmSafetyOverride {
+			c.JSON(http.StatusConflict, gin.H{
+				"requires_confirmation": true,
+				"message":               "This suggestion modifies critical safety parameters (cost_limit, call_limit, or forbidden_tools). Human review and explicit confirmation is required.",
+				"diff":                  configDiff,
+			})
+			return
+		}
+
+		// Log safety override to the audit trail
+		_, auditErr := s.pgConn.Exec(`
+			INSERT INTO approval_audit_log (escalation_id, action, actor, reason, signature, metadata, created_at)
+			VALUES ($1, 'safety_override_merge', 'admin', 'Approved suggestion overriding safety parameters', 'override_sig', '{}'::jsonb, NOW())
+		`, id)
+		if auditErr != nil {
+			log.Printf("Warning: Failed to log safety override to audit trail: %v", auditErr)
+		}
 	}
 
 	// 3. Read current veri.yaml
@@ -1585,39 +1690,7 @@ func (s *GatewayServer) HandleGetAuditLog(c *gin.Context) {
 	c.JSON(http.StatusOK, entries)
 }
 
-// ── Replay, Ablation, Diff Stubs (Phase 2) ──
-
-func (s *GatewayServer) HandleReplay(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"message": "Replay executed successfully (dry-run)",
-		"divergence": nil,
-	})
-}
-
-func (s *GatewayServer) HandleAblation(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"ablation_scores": []gin.H{
-			{"node_id": "node_12", "score": 0.85, "method": "ablation"},
-			{"node_id": "node_11", "score": 0.15, "method": "structural_heuristic"},
-		},
-	})
-}
-
-func (s *GatewayServer) HandleSessionDiff(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"session_a": c.Param("a"),
-		"session_b": c.Param("b"),
-		"divergence_node_id": "node_12",
-		"edit_distance": 2.5,
-		"diff_summary": gin.H{
-			"added_nodes": []string{"node_14"},
-			"removed_nodes": []string{},
-			"modified_values": []string{"node_12"},
-		},
-	})
-}
+// ── Replay, Ablation, Diff Handlers (Implemented in replay.go) ──
 
 // ── Helpers ──
 

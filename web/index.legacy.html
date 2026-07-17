@@ -1354,13 +1354,35 @@
 
             try {
                 const res = await fetch(`${API_BASE}/api/suggestions/${sug.id}/approve`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer test_key_xyz' }
                 });
                 if (res.ok) {
                     alert("Success: Diff merged! Guardrail config updated inside veri.yaml.");
                     suggestions.splice(idx, 1);
                     renderDashboard();
                     renderSuggestionsInbox();
+                } else if (res.status === 409) {
+                    const data = await res.json();
+                    if (confirm(`${data.message}\n\nDiff:\n${data.diff}\n\nDo you want to confirm and force this safety override?`)) {
+                        const res2 = await fetch(`${API_BASE}/api/suggestions/${sug.id}/approve`, {
+                            method: 'POST',
+                            headers: { 
+                                'Authorization': 'Bearer test_key_xyz',
+                                'Content-Type': 'application/json' 
+                            },
+                            body: JSON.stringify({ confirm_safety_override: true })
+                        });
+                        if (res2.ok) {
+                            alert("Success: Safety override approved! Guardrail config updated inside veri.yaml.");
+                            suggestions.splice(idx, 1);
+                            renderDashboard();
+                            renderSuggestionsInbox();
+                        } else {
+                            const err2 = await res2.json();
+                            alert("Failed to merge safety override: " + err2.error);
+                        }
+                    }
                 } else {
                     const err = await res.json();
                     alert("Failed to merge suggestion: " + err.error);
