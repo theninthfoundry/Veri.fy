@@ -14,6 +14,14 @@ import threading
 from typing import Any, Dict, List, Optional, Tuple
 
 import ulid
+from .ir_ref import IRRef, extract_refs
+from .escalation import (
+    EscalationEngine,
+    EscalationPolicy,
+    EscalationRecord,
+    EscalationRequired,
+    EscalationAborted,
+)
 
 
 # ── L0 Guardrail Exceptions ────────────────────────────────────────
@@ -58,6 +66,9 @@ def safe_serialize(obj: Any) -> str:
     For non-serializable objects (DB cursors, file handles, class instances):
     returns a fingerprint with type, truncated repr, and object id.
     """
+    if isinstance(obj, IRRef):
+        obj = obj.unwrap()
+
     if isinstance(obj, (str, int, float, bool, type(None))):
         return json.dumps(obj)
 
@@ -97,6 +108,7 @@ class AgentSessionContext:
         project_id: str,
         cost_limit: float,
         call_limit: int,
+        escalation_engine: Optional[EscalationEngine] = None,
     ):
         self.client = client
         self.session_id = session_id
@@ -110,12 +122,18 @@ class AgentSessionContext:
         self.llm_call_count: int = 0
         self._lock = threading.Lock()
 
+        # Escalation engine — loaded from gateway on session start
+        self.escalation_engine = escalation_engine or EscalationEngine(enabled=False)
+
         self._session_token = None
         self._span_token = None
 
     def __enter__(self):
         self._session_token = active_session_context.set(self)
         self._span_token = active_span_stack.set([])
+
+        # Load escalation policies for this project
+        self.escalation_engine.load_policies(self.project_id)
 
         self.client.emit_async(
             {
@@ -219,6 +237,30 @@ class AgentSessionContext:
             content={"alternatives": alternatives or [], "reasoning": reasoning}
         )
 
+    def escalate(
+        self,
+        label: str,
+        action_type: str,
+        risk: float = 0.0,
+        content: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Explicit escalation point — developer marks a high-risk action
+        that requires human approval regardless of automatic policy matching.
+
+        Usage:
+            with session.escalate("Process refund $450", action_type="refund", risk=0.9) as esc:
+                esc.complete(result, metrics={"amount": 450.0})
+        """
+        from .ir import NodeKind
+        return ExecutionSpanScope(
+            self.client, NodeKind.ESCALATION, label,
+            content={"action_type": action_type, "risk": risk, **(content or {})},
+            capabilities=["is_decision_point", "has_dataflow_deps", "affects_cost"],
+            force_escalation_action_type=action_type,
+            force_escalation_risk=risk,
+        )
+
 
 # ── Execution Span ─────────────────────────────────────────────────
 
@@ -260,6 +302,13 @@ class ExecutionSpanScope:
         uncertainty: Optional[float] = None,
         evidence: Optional[List[str]] = None,
         assumptions: Optional[List[str]] = None,
+        # v2 fields
+        capabilities: Optional[List[str]] = None,
+        confidence_source: Optional[str] = None,
+        confidence_method: Optional[str] = None,
+        # Accountability fields
+        force_escalation_action_type: Optional[str] = None,
+        force_escalation_risk: float = 0.0,
     ):
         self.client = client
         from .ir import NodeKind
@@ -279,9 +328,42 @@ class ExecutionSpanScope:
         self.evidence = evidence or []
         self.assumptions = assumptions or []
 
+        # Derive capabilities based on Category/Kind if not provided
+        if capabilities is None:
+            caps = ["has_dataflow_deps"]
+            if self.category in (NodeKind.LLM_CALL, NodeKind.REASONING):
+                caps.extend(["has_measurable_confidence", "affects_cost"])
+            elif self.category == NodeKind.DECISION:
+                caps.extend(["is_decision_point", "affects_cost"])
+            elif self.category in (NodeKind.TOOL_INVOCATION, NodeKind.ACTION):
+                caps.extend(["is_replayable", "affects_cost"])
+            self.capabilities = caps
+        else:
+            self.capabilities = capabilities
+
+        # Derive confidence source
+        if confidence_source is None:
+            if confidence is not None:
+                self.confidence_source = "self_reported"
+            else:
+                self.confidence_source = "unavailable"
+        else:
+            self.confidence_source = confidence_source
+        self.confidence_method = confidence_method or ""
+
+        # Extract IRRef references from inputs for measured dependency edges
+        self.measured_dependencies = extract_refs(
+            input_data, self.content, confidence, uncertainty, evidence, assumptions
+        )
+
         self.span_id = ulid.new().str
         self.parent_span_id: Optional[str] = None
         self.start_time: float = 0.0
+
+        # Accountability: escalation trigger params
+        self._force_escalation_action_type = force_escalation_action_type
+        self._force_escalation_risk = force_escalation_risk
+        self._escalation_record: Optional[EscalationRecord] = None
 
     def __enter__(self):
         session = active_session_context.get(None)
@@ -296,7 +378,28 @@ class ExecutionSpanScope:
 
         self.start_time = time.time()
 
-        # 1. If there's a parent, dynamically build and emit a RuntimeEdge
+        # 1. Emit measured dataflow edges based on extracted IRRefs
+        for source_node_id, source_field in self.measured_dependencies:
+            edge_payload = {
+                "id": ulid.new().str,
+                "project_id": session.project_id,
+                "agent_id": session.agent_id,
+                "session_id": session.session_id,
+                "category": "edge",
+                "type": "edge.created",
+                "name": "depends_on",
+                "payload": {
+                    "source": source_node_id,
+                    "target": self.span_id,
+                    "weight": 1.0,
+                    "metadata": {"source_field": source_field}
+                },
+                "timestamp": self.start_time,
+                "edge_confidence_source": "measured"
+            }
+            self.client.emit_async(edge_payload)
+
+        # 2. If there's a parent, dynamically build and emit a structural RuntimeEdge
         if self.parent_span_id and parent_category:
             from .ir import RuntimeEdge
             edge_kind = get_edge_kind(parent_category, self.category)
@@ -307,7 +410,6 @@ class ExecutionSpanScope:
                 session_id=session.session_id,
             )
             edge_dict = edge.to_dict()
-            # Inject standard fields for gateway compatibility
             edge_dict.update({
                 "project_id": session.project_id,
                 "agent_id": session.agent_id,
@@ -321,10 +423,11 @@ class ExecutionSpanScope:
                     "metadata": edge.metadata
                 },
                 "timestamp": self.start_time,
+                "edge_confidence_source": "inferred"
             })
             self.client.emit_async(edge_dict)
 
-        # 2. Emit RuntimeNode starting event
+        # 3. Emit RuntimeNode starting event
         self.client.emit_async(
             {
                 "id": self.span_id,
@@ -338,20 +441,118 @@ class ExecutionSpanScope:
                 "name": self.name,
                 "payload": {"input": safe_serialize(self.input_data)},
                 "timestamp": self.start_time,
-                # New IR fields
                 "kind": self.category,
                 "label": self.name,
-                "content": {"input": self.input_data, **self.content},
+                "content": {"input": safe_serialize(self.input_data), **self.content},
                 "confidence": self.confidence,
                 "uncertainty": self.uncertainty,
                 "evidence": self.evidence,
                 "assumptions": self.assumptions,
+                # v2 fields
+                "confidence_value": self.confidence,
+                "confidence_source": self.confidence_source,
+                "confidence_method": self.confidence_method,
+                "capabilities": self.capabilities,
             }
         )
+
+        # 4. Evaluate escalation policies (Accountability Layer)
+        # This is the hook that makes VERI a gatekeeper, not just an observer.
+        self._evaluate_escalation(session)
+
         return self
 
+    def _evaluate_escalation(self, session) -> None:
+        """Checks this node against loaded escalation policies and triggers if matched."""
+        engine = session.escalation_engine
+        if engine is None:
+            return
+
+        # Determine action type from content or force parameter
+        action_type = self._force_escalation_action_type
+        if action_type is None and isinstance(self.content, dict):
+            action_type = self.content.get("action_type") or self.content.get("tool_name")
+
+        risk = self._force_escalation_risk
+
+        matched_policy = engine.evaluate(
+            node_kind=self.category,
+            capabilities=self.capabilities,
+            confidence_value=self.confidence,
+            confidence_source=self.confidence_source,
+            action_type=action_type,
+            cost=0.0,  # cost not known at span start
+            risk=risk,
+        )
+
+        if matched_policy is None:
+            return
+
+        # Trigger escalation
+        record = engine.trigger_escalation(
+            policy=matched_policy,
+            session_id=session.session_id,
+            project_id=session.project_id,
+            agent_id=session.agent_id,
+            node_id=self.span_id,
+            node_kind=self.category,
+            node_label=self.name,
+            node_content=self.content,
+            node_confidence_value=self.confidence,
+            node_confidence_source=self.confidence_source,
+            node_capabilities=self.capabilities,
+        )
+
+        if record is None:
+            return
+
+        self._escalation_record = record
+
+        # Emit an escalation edge in the IR graph
+        from .ir import EdgeKind
+        self.client.emit_async({
+            "id": ulid.new().str,
+            "project_id": session.project_id,
+            "agent_id": session.agent_id,
+            "session_id": session.session_id,
+            "category": "edge",
+            "type": "edge.created",
+            "name": EdgeKind.ESCALATES,
+            "payload": {
+                "source": self.span_id,
+                "target": record.id,
+                "weight": 1.0,
+                "metadata": {
+                    "policy_id": matched_policy.id,
+                    "policy_name": matched_policy.name,
+                    "behavior": matched_policy.timeout_behavior,
+                }
+            },
+            "timestamp": time.time(),
+            "edge_confidence_source": "measured"
+        })
+
+        # Add escalation capability tag to the node
+        if "is_escalated" not in self.capabilities:
+            self.capabilities.append("is_escalated")
+
+        # Enforce behavior
+        if matched_policy.timeout_behavior == "abort":
+            raise EscalationAborted(
+                escalation_id=record.id,
+                policy_name=matched_policy.name,
+                message=f"Action '{self.name}' aborted by escalation policy "
+                        f"'{matched_policy.name}'. Escalation ID: {record.id}",
+            )
+        elif matched_policy.timeout_behavior == "block":
+            # Block and poll for resolution
+            engine.poll_resolution(
+                escalation_id=record.id,
+                timeout_seconds=matched_policy.timeout_seconds,
+            )
+        # 'proceed_with_flag' — continue execution, escalation logged for review
+
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # Pop from span stack on exit (handles exceptions during scope)
         stack = active_span_stack.get([])
         if stack and stack[-1][0] == self.span_id:
             stack.pop()
@@ -378,27 +579,30 @@ class ExecutionSpanScope:
                             }
                         },
                         "timestamp": time.time(),
-                        # New IR fields
                         "kind": self.category,
                         "label": self.name,
-                        "content": {"input": self.input_data, "error": str(exc_val), **self.content},
+                        "content": {"input": safe_serialize(self.input_data), "error": str(exc_val), **self.content},
                         "confidence": 0.0,
                         "latency": duration_ms,
                         "duration": duration_ms,
+                        # v2 fields
+                        "confidence_value": 0.0,
+                        "confidence_source": "unavailable",
+                        "capabilities": self.capabilities + ["is_error"],
                     }
                 )
-        return False  # Don't suppress exceptions
+        return False
 
     def complete(
         self, output_data: Any, metrics: Optional[Dict[str, Any]] = None
-    ) -> None:
+    ) -> IRRef:
         """
         Manually completes the span with output data and metrics.
-        Call this instead of relying on __exit__ for successful completions.
+        Returns a transparent IRRef tracking wrapper.
         """
         session = active_session_context.get(None)
         if not session:
-            return
+            return IRRef(output_data, self.span_id, "content")
 
         stack = active_span_stack.get([])
         if stack and stack[-1][0] == self.span_id:
@@ -409,7 +613,6 @@ class ExecutionSpanScope:
         if metrics:
             base_metrics.update(metrics)
 
-        # Emit RuntimeNode completed event
         self.client.emit_async(
             {
                 "id": self.span_id,
@@ -424,10 +627,9 @@ class ExecutionSpanScope:
                 "payload": {"output": safe_serialize(output_data)},
                 "metrics": base_metrics,
                 "timestamp": time.time(),
-                # New IR fields
                 "kind": self.category,
                 "label": self.name,
-                "content": {"input": self.input_data, "output": output_data, **self.content},
+                "content": {"input": safe_serialize(self.input_data), "output": safe_serialize(output_data), **self.content},
                 "confidence": self.confidence,
                 "uncertainty": self.uncertainty,
                 "evidence": self.evidence,
@@ -439,5 +641,11 @@ class ExecutionSpanScope:
                     "output": base_metrics.get("tokens_output", 0),
                 },
                 "duration": duration_ms,
+                # v2 fields
+                "confidence_value": self.confidence,
+                "confidence_source": self.confidence_source,
+                "confidence_method": self.confidence_method,
+                "capabilities": self.capabilities,
             }
         )
+        return IRRef(output_data, self.span_id, "content")

@@ -47,6 +47,9 @@ class NodeKind:
     RISK = "risk"
     ANOMALY = "anomaly"
 
+    # Accountability
+    ESCALATION = "escalation"
+
 
 class EdgeKind:
     CAUSES = "causes"
@@ -66,6 +69,7 @@ class EdgeKind:
     OBSERVES = "observes"
     ASSUMES = "assumes"
     REFLECTS_ON = "reflects_on"
+    ESCALATES = "escalates"
 
 
 class RuntimeNode:

@@ -295,11 +295,20 @@ def _patch_langchain(client) -> None:
                 scope = self._scopes.pop(run_id, None)
                 if scope:
                     scope.__exit__(type(error), error, error.__traceback__)
+        # Apply global monkey-patching to BaseCallbackManager to achieve zero-config auto-instrumentation
+        original_init = cb_manager.BaseCallbackManager.__init__
+
+        def patched_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            has_veri = any(x.__class__.__name__ == "VeriLangChainCallback" for x in self.handlers)
+            if not has_veri:
+                self.add_handler(VeriLangChainCallback())
+
+        cb_manager.BaseCallbackManager.__init__ = patched_init
 
         # Expose the handler class so users can plug it into their chain
         sys.modules["veri"].LangChainHandler = VeriLangChainCallback
-        logger.info("LangChain auto-instrumentation active. Use veri.LangChainHandler().")
+        logger.info("LangChain auto-instrumentation active globally via BaseCallbackManager patch.")
 
     except ImportError:
         logger.debug("langchain-core not installed. Skipping instrumentation.")
-

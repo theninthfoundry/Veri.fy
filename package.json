@@ -1,0 +1,12 @@
+{
+  "name": "veri-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev"
+  },
+  "devDependencies": {
+    "turbo": "^1.10.0"
+  }
+}

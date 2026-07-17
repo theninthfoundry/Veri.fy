@@ -3,10 +3,22 @@ import logging
 from typing import List, Optional
 from .client import VeriClient
 from .ir import NodeKind, EdgeKind, RuntimeNode, RuntimeEdge
+from .ir_ref import IRRef
+from .escalation import (
+    EscalationRequired,
+    EscalationAborted,
+    EscalationTimedOut,
+    EscalationPolicy,
+    EscalationRecord,
+    EscalationEngine,
+    compute_approval_signature,
+    verify_approval_signature,
+)
 
 logger = logging.getLogger("veri")
 
 _global_client: Optional[VeriClient] = None
+_global_escalation_engine: Optional[EscalationEngine] = None
 
 
 def _load_yaml_config(path: str) -> dict:
@@ -58,10 +70,12 @@ def _load_yaml_config(path: str) -> dict:
 
 def init(
     api_key: Optional[str] = None,
-    endpoint: str = "http://localhost:8080/v1/events",
+    endpoint: str = "http://localhost:8080/api/v1/ingest",
+    gateway_endpoint: str = "http://localhost:8080",
     cost_limit: float = 5.00,
     call_limit: int = 100,
     disabled: bool = False,
+    escalation_enabled: bool = True,
 ) -> None:
     """
     Initializes the global VERI runtime client.
@@ -70,11 +84,13 @@ def init(
     Args:
         api_key: VERI API key. Falls back to VERI_API_KEY env var.
         endpoint: Gateway ingest URL.
+        gateway_endpoint: Gateway base URL (for escalation policy loading, etc.).
         cost_limit: Maximum USD spend per session before L0 kill-switch.
         call_limit: Maximum LLM calls per session before L0 kill-switch.
         disabled: If True, SDK is inert — no events emitted, no guardrails.
+        escalation_enabled: If True, load and enforce escalation policies.
     """
-    global _global_client
+    global _global_client, _global_escalation_engine
 
     if _global_client is not None:
         logger.warning("VERI SDK is already initialized. Skipping redundant initialization.")
@@ -100,10 +116,19 @@ def init(
         call_limit=effective_call_limit,
         disabled=disabled,
     )
+
+    # Initialize Escalation Engine
+    _global_escalation_engine = EscalationEngine(
+        gateway_endpoint=gateway_endpoint,
+        api_key=effective_key or "disabled_key",
+        enabled=escalation_enabled and not disabled,
+    )
+
     logger.info(
-        "VERI SDK initialized (cost_limit=%s, call_limit=%s) — capture loop active.",
+        "VERI SDK initialized (cost_limit=%s, call_limit=%s, escalation=%s) — capture loop active.",
         effective_cost_limit,
         effective_call_limit,
+        "enabled" if escalation_enabled else "disabled",
     )
 
 
@@ -117,10 +142,11 @@ def get_client() -> VeriClient:
 
 def reset() -> None:
     """Tears down the global client. Useful for testing."""
-    global _global_client
+    global _global_client, _global_escalation_engine
     if _global_client is not None:
         _global_client.shutdown()
         _global_client = None
+    _global_escalation_engine = None
 
 
 def instrument(frameworks: List[str]) -> None:
@@ -140,6 +166,14 @@ def instrument(frameworks: List[str]) -> None:
 
 def session(session_id: str, agent_id: str, project_id: str):
     """Shorthand context manager for creating a tracked agent session."""
-    return get_client().session(
-        session_id=session_id, agent_id=agent_id, project_id=project_id
+    client = get_client()
+    from .context import AgentSessionContext
+    return AgentSessionContext(
+        client=client,
+        session_id=session_id,
+        agent_id=agent_id,
+        project_id=project_id,
+        cost_limit=client.cost_limit,
+        call_limit=client.call_limit,
+        escalation_engine=_global_escalation_engine,
     )

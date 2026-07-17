@@ -40,3 +40,43 @@ testing:
     - "drop_table"
     - "update_payment"
     - "bypass_security"
+
+# ── Evolution Engine Configuration (Auto-Optimization Loops) ──────────
+evolution_engine:
+  # Enable autonomous fix simulations and recommendations
+  enabled: true
+  
+  # Automatically merge and hot-deploy optimization suggestions when confidence exceeds threshold
+  auto_deploy: false
+  
+  # Minimum confidence threshold for automated fix deployment
+  simulation_threshold: 0.85
+  
+  # Number of offline counterfactual simulations to run per failure event
+  offline_evaluation_samples: 10
+
+# ── Escalation Policies (Human-in-the-Loop Control) ──
+escalation:
+  policies:
+    - name: "High-risk financial actions"
+      trigger:
+        action_types: ["financial_transaction", "refund", "payment"]
+        confidence_below: 0.7
+      resolution:
+        channel: "in_app_queue"
+        timeout_seconds: 300
+        timeout_behavior: "block"
+        required_approvers: 1
+      audit: "reasoned"
+
+    - name: "Low-confidence decisions"
+      trigger:
+        capabilities: ["is_decision_point"]
+        confidence_below: 0.5
+        confidence_source: "self_reported"
+      resolution:
+        channel: "in_app_queue"
+        timeout_seconds: 600
+        timeout_behavior: "proceed_with_flag"
+      audit: "reasoned"
+
