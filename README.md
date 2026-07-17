@@ -1,87 +1,122 @@
-# VERI — Agent Accountability Platform
+# 🌌 VERI.fy — BehaviorOS for Autonomous Agent Systems
 
-> **Proof-grade accountability, safety control loops, and audit infrastructure for AI agents that act, not just advise.**
+> **The enterprise system of record and CI/CD quality gate for agentic workflows. Reconstruct, prove, contract, and version autonomous agent behavior.**
 
-VERI is the enterprise system of record that bridges the gap between autonomous agent actions and strict compliance/governance requirements. By integrating directly into the execution path of your LLM-driven agents, VERI enforces policy-driven human-in-the-loop approvals, generates reproducible decision replays, and produces cryptographic, append-only audit trails for regulatory and compliance validation.
+[![GitHub license](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![CI Build Status](https://img.shields.io/badge/CI-Passing-success.svg)]()
+[![Code Quality](https://img.shields.io/badge/BehaviorOS-v3.0-blueviolet.svg)]()
 
----
-
-## Strategic Shift: From Observability to Accountability
-
-Observability tools (LangSmith, Braintrust, Langfuse) answer **what** your agent did for debugging. 
-VERI answers **why** it was allowed to do it, **blocks** it before it performs high-risk actions, and **proves** the causal provenance of its decisions to compliance officers, legal teams, and auditors.
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    VERI ACCOUNTABILITY CONTROL LOOP                             │
-│                                                                                 │
-│  1. EXECUTE:   Agent executes using the VERI SDK (auto-instrumented).           │
-│  2. EVALUATE:  SDK evaluates active policies before high-risk actions.         │
-│  3. CONTROL:   [Block] or [Proceed with Flag] based on confidence & risk.      │
-│  4. ESCALATE:  Sends pending actions to Slack, Webhooks, or In-App Queue.      │
-│  5. VERIFY:    Human signs off. VERI logs cryptographic HMAC signature.        │
-│  6. AUDIT:     One-click SOC 2 evidence package export with causal proof.      │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+VERI is the first developer platform built specifically for the **behavior of autonomous systems**. While traditional observability platforms (LangSmith, Braintrust, OpenTelemetry) record *what* happened for debugging, VERI treats autonomous execution as a versionable, testable, and contract-governed graph. It enables developers to answer **why** decisions occurred, **intercept and block** high-risk actions before they run, and **prevent regressions** in production agent networks.
 
 ---
 
-## Core Pillars of the Platform
+## 💡 The Paradigm Shift: Behavior-Driven Infrastructure
 
-### 1. Policy-as-Code Escalation Layer
-Enforce structured approvals directly on the agent's execution stack based on node capabilities, confidence source, risk, and cost. If an agent with low confidence attempts a financial transaction, VERI blocks execution immediately and awaits sign-off.
-- **timeout_behavior: "block"** — Holds execution thread synchronously until approved/rejected.
-- **timeout_behavior: "proceed_with_flag"** — Continues execution but marks the trace with the `is_escalated` capability tag.
-- **timeout_behavior: "abort"** — Terminates the execution span and safely rolls back state.
-
-### 2. Auditable Causal Replay
-Leverages Tier-1 deterministic replay cache to perform counterfactual ablation. Rather than simple guesswork, VERI reruns execution points with modified inputs to isolate the root cause, outputting findings clearly labeled by methodology:
-- ⚡ **Measured Replay (Ablation)**: Empirically verified root causes.
-- 🔮 **Estimated Heuristic**: Heuristics for non-deterministic reasoning nodes.
-
-### 3. Append-Only Audit Log with Cryptographic Signatures
-Every human approval, timeout, or policy modification is logged to append-only database tables. Every resolution carries an HMAC-SHA256 signature calculated from:
-`HMAC-SHA256(actor | action | timestamp | escalation_id, project_secret)`
-This guarantees mathematical non-repudiation: proof that a specific decision was approved by a specific person at a specific time.
-
----
-
-## Directory Structure
+Unlike static applications, agents fail stochastically due to model upgrades, prompt drifts, and shifting context vectors. VERI shifts the focus from raw text logs to structured behavior:
 
 ```
-packages/evolution-sdk-python/
-├── pyproject.toml              # Dependencies & Packaging Setup
-└── veri/
-    ├── __init__.py             # Public SDK interfaces & exports
-    ├── client.py               # Async background event emission worker thread
-    ├── context.py              # Context managers & local L0 circuit breakers
-    ├── escalation.py           # POLICY ENGINE, HMAC signature math, resolution polling
-    ├── patching.py            # Monkey-patch hooks (OpenAI, LangChain)
-    ├── matcher.py             # Fuzzy matched tool expectation logic
-    ├── assertions.py          # Three-layer validation engine (Fact, Polarity, Semantic)
-    └── cli.py                 # Command line runner (veri test/record)
+                  Traditional Observability vs. BehaviorOS
+                  
+      [ Raw Text Logs ]  ──►  Only tracks inputs/outputs (What)
+      [ Prompt Version ] ──►  Fails to predict environment drift
+      
+      [ VERI BehaviorGraph ] ──► Tracks causal lineage, trust flow, 
+                                and state evolution tree (Why)
 ```
 
 ---
 
-## Quickstart & Verification
+## 🛠️ The 8 Pillars of BehaviorOS
 
-Run the entire environment locally:
+### 1. 🌳 Unified Behavior Graph
+Every agent execution is compiled into a typed graph mapping inputs, cognitive steps (planning, reflection, retries), actions, decisions, and side effects. All evaluation, diffing, and replay operations run as algorithms over this single source of truth.
 
-1. **Start the Infrastructure Stack**:
-   Starts Postgres, ClickHouse, NATS, Redis, and MinIO.
-   ```cmd
-   docker compose up -d
-   ```
+### 2. 🛡️ Behavioral Contracts
+Wrap high-risk agent functions with declarative safety policies using standard decorators. If a planner attempts to execute a tool outside of contract boundaries (e.g. price caps, forbidden parameters, lack of human sign-off), the contract engine intercepts and blocks the call.
+```python
+from veri.contracts import behavior_contract
 
-2. **Start Gateway and Analyzer**:
-   Builds and launches Go gateway and analyzer services:
-   ```cmd
-   .\run_end_to_end.bat
-   ```
+@behavior_contract(max_price=1000.0, allowed_country="Japan", human_required=True)
+def book_flight(price: float, country: str):
+    # Enforced at runtime & during regression testing
+    return f"Flight booked to {country} for ${price}"
+```
 
-3. **Verify the Core Capabilities**:
-   - E2E Policy Control & HMAC verification: `python verify_escalation.py`
-   - Telemetry Capture & L0 budget limits: `python verify_sdk.py`
-   - Fuzzy Matcher & Polarity Engine: `python verify_matcher.py`
-   - Universal Runtime IR Generation: `python verify_ir.py`
+### 3. 🔐 Cryptographic Runtime Fingerprinting
+Catch silent Environment Drift. VERI captures active prompt templates, model versions, tool schemas, and environment packages, compiling them into a deterministic SHA-256 hash. If base models or external APIs change behind your back, the fingerprint breaks.
+
+### 4. 🔄 True Causal Replay (Ablation Testing)
+To find out why an agent failed, VERI isolates nodes and substitutes golden inputs from past working runs. If downstream behavior recovers, VERI proves mathematically that this node was the causal culprit.
+*   ⚡ **Measured Replay**: Empirical verification of causal node failures.
+*   🔮 **Estimated Heuristics**: Structural BFS graph distance estimation for non-replayable systems.
+
+### 5. 🕒 Cognitive State Time Machine
+Track state evolution. Instead of flat memory logs, the SDK captures incremental `StateDelta` mutations (planner updates, memory modifications, confidence changes) to let you step forward and backward through the agent’s internal reasoning timeline.
+
+### 6. 📉 Causal Trust Propagation
+Uncertainty decays downstream. Every retriever, planner, and tool node receives a local trust factor. VERI propagates this trust score using directed graph calculations:
+$$T_i = (1 - U_i) \times C_i \times \prod_{j \in \text{parents}(i)} (T_j \cdot W_{ji})$$
+If the trust flow collapses, VERI blocks execution immediately to prevent hallucinations.
+
+### 7. 🕸️ Multi-Agent Causality
+Trace root causes across agent boundaries. When multiple distributed agents interact with databases, web APIs, and human review gates, VERI reconstructs the unified distributed DAG to backtrack the root cause of failures.
+
+### 8. 📦 Behavioral Supply Chain (BOM)
+Generate a comprehensive **Behavior Bill of Materials (BOM)**. Trace any final output back to the specific prompts, models, document chunks, tool actions, and human reviews that contributed to it for strict audit and compliance needs.
+
+---
+
+## 🚀 System Architecture
+
+```mermaid
+graph TD
+    A[Agent Application] -- Telemetry & Spans --> B[VERI Python SDK]
+    B -- In-Process Circuit Breakers --> A
+    B -- Authorization: Bearer token --> C[Go Gateway]
+    C -- Ingestion Queue --> D[ClickHouse / Postgres]
+    E[CLI Gating / CI Runner] -- verify_sdk.py / cli_gate.py --> B
+    F[Cockpit Dashboard] -- double-confirmation approval --> C
+```
+
+---
+
+## 📂 Project Directory Structure
+
+```text
+├── packages/
+│   └── evolution-sdk-python/   # Public python client
+│       ├── veri/
+│       │   ├── contracts.py    # Decorator-based contracts & check engine
+│       │   ├── fingerprint.py  # Runtime snapshot compilation & hashing
+│       │   ├── lineage.py      # Behavior BOM & lineage tree reconstruction
+│       │   ├── context.py      # Context managers, span stack, & replay graph builder
+│       │   ├── escalation.py   # Policy control, resolution polling & signatures
+│       │   └── cli_gate.py     # CI/CD regression test gating gate check
+│       └── tests/              # Verification suites
+└── services/
+    ├── gateway/                # Go API gateway with Auth and Topological Replay Engine
+    └── analyzer/               # Go background telemetry aggregation engine
+```
+
+---
+
+## ⚡ Quickstart & Verification Suite
+
+### 1. Boot up the Infrastructure Stack
+Spin up Postgres, ClickHouse, NATS, Redis, and MinIO:
+```bash
+docker compose up -d
+```
+
+### 2. Launch Gateway and Analyzer Services
+Run the Go backend services with production security checks:
+```bash
+.\run_end_to_end.bat
+```
+
+### 3. Run the Verification Tests
+Validate core capabilities locally:
+*   **Policy Engine & HMAC Signatures**: `python verify_escalation.py`
+*   **Ablation Replay & Causal Core**: `python verify_sdk.py`
+*   **Fuzzy Matching & Polarity Assertions**: `python verify_matcher.py`
+*   **Universal Runtime IR Generation**: `python verify_ir.py`
