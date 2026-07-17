@@ -1,4 +1,4 @@
-# 🌌 VERI.fy — BehaviorOS for Autonomous Agent Systems
+# 🌌 VERI. — BehaviorOS for Autonomous Agent Systems
 
 > **The enterprise system of record and CI/CD quality gate for agentic workflows. Reconstruct, prove, contract, and version autonomous agent behavior.**
 
